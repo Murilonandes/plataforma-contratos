@@ -1,0 +1,17 @@
+# Normaliza line endings: no repo sempre LF, no working tree conforme regra abaixo.
+# Casa com .editorconfig (end_of_line = lf).
+
+* text=auto eol=lf
+
+# Scripts nativos de Windows precisam de CRLF ao serem escritos em disco.
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Binários: nunca converter EOL.
+*.png  -text
+*.jpg  -text
+*.jpeg -text
+*.gif  -text
+*.ico  -text
+*.pdf  -text
