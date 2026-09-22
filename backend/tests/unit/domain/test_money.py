@@ -92,15 +92,18 @@ def test_constantes_das_unidades() -> None:
 @pytest.mark.parametrize("funcao", [quantize_brl, quantize_qty, quantize_pct])
 @pytest.mark.parametrize("valor", [10.005, 10, "10.005", None])
 def test_rejeita_tipo_diferente_de_decimal(funcao: object, valor: object) -> None:
-    with pytest.raises(TypeError, match="use Decimal, nunca float"):
+    with pytest.raises(TypeError) as exc:
         funcao(valor)  # type: ignore[operator]
+    # mensagem exata: match= faz busca de substring e deixaria mutantes vivos
+    assert str(exc.value) == "use Decimal, nunca float"
 
 
 @pytest.mark.parametrize("funcao", [quantize_brl, quantize_qty, quantize_pct])
 @pytest.mark.parametrize("valor", ["NaN", "sNaN", "Infinity", "-Infinity"])
 def test_rejeita_decimal_nao_finito(funcao: object, valor: str) -> None:
-    with pytest.raises(ValueError, match="valor monetario/quantidade precisa ser finito"):
+    with pytest.raises(ValueError) as exc:  # noqa: PT011 — mensagem conferida abaixo
         funcao(Decimal(valor))  # type: ignore[operator]
+    assert str(exc.value) == "valor monetario/quantidade precisa ser finito (sem NaN/Infinity)"
 
 
 # ---- Propriedade: erro de arredondamento no maximo meia unidade --------------
