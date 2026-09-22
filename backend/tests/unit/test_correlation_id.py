@@ -61,3 +61,25 @@ async def test_correlation_id_unico_por_request(cliente: httpx.AsyncClient) -> N
     a = (await cliente.get("/eco")).headers["X-Request-ID"]
     b = (await cliente.get("/eco")).headers["X-Request-ID"]
     assert a != b
+
+
+@pytest.mark.parametrize(
+    "valido", ["abc-123", "A.b_c-9", "x" * 128, "0f8fad5b-d9cb-469f-a165-70867728950e"]
+)
+async def test_x_request_id_valido_e_preservado(cliente: httpx.AsyncClient, valido: str) -> None:
+    resp = await cliente.get("/eco", headers={"X-Request-ID": valido})
+    assert resp.headers["X-Request-ID"] == valido
+
+
+@pytest.mark.parametrize(
+    "invalido",
+    ["x" * 129, "com espaco", "tem/barra", 'aspas"', "chave=valor", "ç-acento", "a;b", "{json}"],
+)
+async def test_x_request_id_invalido_e_substituido_por_uuid4(
+    cliente: httpx.AsyncClient, invalido: str
+) -> None:
+    resp = await cliente.get("/eco", headers={"X-Request-ID": invalido.encode("utf-8")})
+    cid = resp.headers["X-Request-ID"]
+    assert cid != invalido
+    assert uuid.UUID(cid).version == 4
+    assert resp.json()["correlation_id"] == cid

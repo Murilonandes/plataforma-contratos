@@ -147,9 +147,12 @@ jobs:
           test "$(curl -fsS http://127.0.0.1:8000/health/live)" = '{"status":"ok"}'
           test "$(curl -fsS -o /dev/null -w '%{http_code}' http://127.0.0.1:8000/health/ready)" = "200"
           curl -fsS -D - -o /dev/null -H 'X-Request-ID: ci-123' http://127.0.0.1:8000/health/live | grep -i '^x-request-id: ci-123'
+          # X-Request-ID fora de ^[A-Za-z0-9._-]{1,128}$ e trocado por um uuid novo
+          rid=$(curl -fsS -D - -o /dev/null -H 'X-Request-ID: tem/barra' http://127.0.0.1:8000/health/live | tr -d '\r' | awk -F': ' 'tolower($1)=="x-request-id"{print $2}')
+          test -n "$rid" && test "$rid" != "tem/barra"
           test "$(docker exec api id -u)" != "0"
-          # o mesmo comando do HEALTHCHECK da imagem
-          docker exec api python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health/live', timeout=2).status == 200 else 1)"
+          # imagem compartilhada api/worker nao pode trazer HEALTHCHECK embutido
+          test "$(docker inspect --format '{{json .Config.Healthcheck}}' "$BACKEND_IMG")" = "null"
           docker logs api > "$RUNNER_TEMP/api.log" 2>&1
           python3 -c "import json,sys; [json.loads(l) for l in open(sys.argv[1]) if l.strip()]" "$RUNNER_TEMP/api.log"
           docker rm -f api
@@ -168,28 +171,49 @@ jobs:
           curl -fsS http://127.0.0.1:5173/ | grep -q '<title>Plataforma de Contratos</title>'
           curl -fsS http://127.0.0.1:5173/rota/qualquer | grep -q 'id="root"'
           curl -fsS -D - -o /dev/null http://127.0.0.1:5173/ | grep -i '^x-content-type-options: nosniff'
+          # redirect de diretorio relativo (absolute_redirect off): sem http:// absoluto
+          curl -sS -D - -o /dev/null http://127.0.0.1:5173/assets | tr -d '\r' | grep -i '^location: /assets/$'
+          # /assets/* com cache imutavel E os headers de seguranca
+          asset=$(curl -fsS http://127.0.0.1:5173/ | grep -o '/assets/[^"]*\.js' | head -n 1)
+          test -n "$asset"
+          h=$(curl -fsS -D - -o /dev/null "http://127.0.0.1:5173$asset" | tr -d '\r')
+          echo "$h" | grep -i '^cache-control: public, max-age=31536000, immutable'
+          echo "$h" | grep -i '^x-content-type-options: nosniff'
+          echo "$h" | grep -i '^x-frame-options: DENY'
+          echo "$h" | grep -i '^referrer-policy: strict-origin-when-cross-origin'
           docker rm -f web
 
-      - name: compose (config + db healthy)
+      - name: compose (config + db, api, web healthy + worker)
+        env:
+          # .env.example deixa SAP_PRD_HOSTS vazio de proposito (fail-closed); o
+          # shell tem precedencia sobre --env-file na interpolacao.
+          SAP_PRD_HOSTS: s4-prd.example
+          SAP_BASE_URL: https://s4-dev.example/x/
         run: |
           set -euo pipefail
-          docker compose -f infra/compose.dev.yml --env-file infra/.env.example config -q
-          docker compose -f infra/compose.dev.yml --env-file infra/.env.example up -d --wait db
-          docker compose -f infra/compose.dev.yml --env-file infra/.env.example logs db | grep -q "ready to accept connections"
-          docker compose -f infra/compose.dev.yml --env-file infra/.env.example down -v
+          dc() { docker compose -f infra/compose.dev.yml --env-file infra/.env.example "$@"; }
+          docker tag "$BACKEND_IMG" plataforma-contratos-backend:dev
+          docker tag "$WEB_IMG" plataforma-contratos-web:dev
+          dc config -q
+          dc up -d --no-build --wait db api web
+          dc logs db | grep -q "ready to accept connections"
+          curl -fsS http://127.0.0.1:8000/health/live
+          curl -fsS http://127.0.0.1:5173/healthz
+          dc run --rm --no-deps worker
+          dc down -v
 
-      - name: trivy backend (bloqueia so CRITICAL com fix)
+      - name: trivy backend (bloqueia HIGH e CRITICAL com fix)
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: ${{ env.BACKEND_IMG }}
-          severity: CRITICAL
+          severity: HIGH,CRITICAL
           ignore-unfixed: true
           exit-code: "1"
 
-      - name: trivy frontend (bloqueia so CRITICAL com fix)
+      - name: trivy frontend (bloqueia HIGH e CRITICAL com fix)
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: ${{ env.WEB_IMG }}
-          severity: CRITICAL
+          severity: HIGH,CRITICAL
           ignore-unfixed: true
           exit-code: "1"

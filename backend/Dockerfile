@@ -42,8 +42,9 @@ WORKDIR /app
 USER appuser
 EXPOSE 8000
 
-HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
-    CMD ["python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health/live', timeout=2).status == 200 else 1)"]
+# Sem HEALTHCHECK na imagem: ela serve api E worker, e o worker nao tem HTTP
+# (herdaria um check que falha -> restart em loop no Swarm). O healthcheck e
+# declarado por servico: compose (infra/compose.dev.yml, so na api) e stack.
 
 ENTRYPOINT ["python", "-m"]
 CMD ["app.entrypoints.api"]

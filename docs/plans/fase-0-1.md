@@ -775,8 +775,27 @@ EOL); nginx 1.30 (1.27 sem suporte); testes de API com `httpx.AsyncClient`+`ASGI
 **Correções pós-CI:** `05b3618` — secrets condicional + arquivo > env + `hide_input_in_errors`
 (senha vazava em `str(ValidationError)`) + `captureWarnings` e bootstrap de logging no entrypoint.
 
-**Pendências abertas:** Dependabot `uv` falhando (log não lido — sem `gh` na máquina);
-`/code-review` (Passo 3) não rodado; `README.md` da raiz em UTF-16 vindo do commit `ea9bf46`.
+**Pendências abertas:** Dependabot `uv` falhando (log não lido — sem `gh` na máquina; não bloqueia).
+
+**Code review (Passo 3), 2026-09-22:** revisão de segurança por subagente sem contexto sobre o diff
+da Fase 0 (0 CRITICAL, 0 HIGH, 4 MEDIUM, 11 LOW, 6 INFO). Corrigidos antes da Fase 1: 1, 4, 5, 6
+(`13cad59`), 2, 3, 8 (`36e7d5b`) e o pacote 12, 13, 14, 16, 18. README em UTF-8 (`c73a88f`).
+
+**Backlog de hardening para a Fase 5** (achados da revisão, decisão do dono do projeto):
+- **7** — o guard compara strings: listar em `SAP_PRD_HOSTS` **todos** os nomes DNS, CNAMEs e IPs
+  que chegam no PRD (SANs do certificado). Avaliar resolução DNS no startup.
+- **9** — frontend em imagem nginx não-root (`nginx-unprivileged`, porta 8080).
+- **10** — imagens base (python, uv, node, nginx, postgres) fixadas por digest `@sha256`, com
+  Dependabot atualizando.
+- **11** — `.venv` da imagem do backend como root e só leitura (hoje é do `appuser`, que pode
+  escrever); avaliar remover o pip do runtime.
+- **15** — `pip-audit` com dependências da própria ferramenta travadas (lock/hashes).
+- **17** — gitleaks: varredura do histórico inteiro em agendamento/`workflow_dispatch` (hoje só o
+  range do push/PR); conferir `pull-requests: read` se o repo virar privado.
+- **19** — cache GHA `mode=max`: ampliar o `frontend/.dockerignore` (`.npmrc`, `*.pem`,
+  `secrets/`) antes de qualquer token de build.
+- **Nota do 20** — na Fase 2 a credencial SAP vai **só para o worker**; a API não recebe
+  `SAP_USER`/`SAP_PASS` (compose e stack).
 
 ---
 

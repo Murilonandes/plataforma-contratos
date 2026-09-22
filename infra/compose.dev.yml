@@ -41,13 +41,22 @@ services:
     <<: *backend
     ports:
       - "127.0.0.1:8000:8000"
+    # A imagem nao traz HEALTHCHECK (e compartilhada com o worker); declarado aqui.
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health/live', timeout=2).status == 200 else 1)"
+      interval: 30s
+      timeout: 3s
+      start_period: 10s
+      retries: 3
 
   worker:
     <<: *backend
     command: ["app.entrypoints.worker"]
-    # Stub da Fase 0 sai com 0; sem HTTP, entao o HEALTHCHECK da imagem nao se aplica.
-    healthcheck:
-      disable: true
+    # Sem HTTP: sem healthcheck HTTP. Stub da Fase 0 sai com 0.
     restart: "no"
 
   web:
