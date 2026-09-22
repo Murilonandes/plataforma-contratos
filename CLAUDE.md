@@ -6,7 +6,7 @@ Esta plataforma cria contratos de venda (ZCON) no SAP S/4HANA pelo serviço ODat
 ## Stack
 - **Backend:** Python 3.12, FastAPI, Pydantic v2, SQLAlchemy 2 (async) + Alembic, httpx, structlog, uv
 - **Banco:** PostgreSQL 16. A fila de envio é uma tabela outbox com `FOR UPDATE SKIP LOCKED`, sem Redis
-- **Frontend:** React 18 + Vite + TypeScript strict, TanStack Query + Router, React Hook Form + Zod, shadcn/ui + Tailwind, MSAL React
+- **Frontend:** React 19 + Vite + TypeScript strict, TanStack Query + Router, React Hook Form + Zod, shadcn/ui + Tailwind, MSAL React
 - **Infra:** Docker multi-stage, Docker Swarm + Traefik, GitHub Actions
 - **Auth:** Microsoft Entra ID (SPA PKCE no front, validação de JWT e app roles na API)
 

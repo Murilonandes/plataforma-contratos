@@ -6,7 +6,7 @@
 
 **Objetivo Fase 1:** domínio puro (`backend/app/domain/`) espelhando o `$metadata` do serviço `ZAPI_CONTRATO_VENDAS` — VOs em `@dataclass(frozen=True)` com validação própria, parcelas por maior resto (resíduo nas **primeiras** parcelas), máquina de estados completa (matriz em §4 do ARCHITECTURE.md), e mapper OData em `app/infrastructure/sap/mapper.py` (formato SAP é infra; a função é pura e testada nesta fase com golden file).
 
-**Arquitetura:** monólito modular hexagonal. `domain` ← `application` ← `infrastructure`/`api`, com `import-linter` garantindo a regra no CI (inclui proibir `pydantic` em `app.domain`). Backend Python 3.12 (uv/ruff/mypy strict/pytest/hypothesis). Frontend React 18 + Vite + TS strict + Vitest. Postgres 16 via compose (só sobe na Fase 2, mas o compose já sai pronto na Fase 0).
+**Arquitetura:** monólito modular hexagonal. `domain` ← `application` ← `infrastructure`/`api`, com `import-linter` garantindo a regra no CI (inclui proibir `pydantic` em `app.domain`). Backend Python 3.12 (uv/ruff/mypy strict/pytest/hypothesis). Frontend React 19 + Vite + TS strict + ESLint + Vitest, Node 22 LTS (Node 20 EOL abr/2026). Postgres 16 via compose (só sobe na Fase 2, mas o compose já sai pronto na Fase 0).
 
 **Regras invioláveis (CLAUDE.md + correções desta rodada):**
 - `Decimal` no Python, `NUMERIC` no banco. Nunca `float` em dinheiro/quantidade.
@@ -107,7 +107,7 @@ Testes Fase 1:
 ### Frontend (`frontend/`)
 - ✱ `frontend/package.json`
 - ✱ `frontend/pnpm-lock.yaml`
-- ✱ `frontend/.nvmrc` (`20`)
+- ✱ `frontend/.nvmrc` (`22`)
 - ✱ `frontend/tsconfig.json` (strict on)
 - ✱ `frontend/tsconfig.node.json`
 - ✱ `frontend/vite.config.ts`
@@ -660,7 +660,7 @@ git commit -m "chore(frontend): scaffold Vite + React + TS strict + Vitest"
 **Passos:**
 
 - [ ] **Passo 1** — Criar `Dockerfile` multi-stage:
-  - Stage `build`: `node:20-alpine`, `pnpm i --frozen-lockfile`, `pnpm build`
+  - Stage `build`: `node:22-alpine`, `pnpm i --frozen-lockfile`, `pnpm build`
   - Stage `runtime`: `nginx:1.27-alpine`, copia `dist/` para `/usr/share/nginx/html`, copia `nginx.conf`
   - `EXPOSE 80`
 
@@ -720,7 +720,7 @@ git commit -m "chore(infra): compose.dev.yml com postgres 16 + api + worker + we
 
 - [ ] **Passo 1** — Criar `ci.yml` com jobs:
   1. `backend`: matrix Python 3.12 → `uv sync --dev` → `uv run ruff check .` → `uv run ruff format --check .` → `uv run mypy app` → `uv run lint-imports` → `uv run pytest` → **gate**: `uv run pytest --cov=app.domain --cov=app.application --cov-report=xml --cov-fail-under=90` (job falha se cobertura em domain+application < 90%)
-  2. `frontend`: node 20 + pnpm → `pnpm i --frozen-lockfile` → `pnpm lint` → `pnpm typecheck` → `pnpm test` → `pnpm build`
+  2. `frontend`: node 22 + pnpm → `pnpm i --frozen-lockfile` → `pnpm lint` → `pnpm typecheck` → `pnpm test` → `pnpm build`
   3. `security`: `pip-audit`, `pnpm audit --prod`, `gitleaks`
   4. `images`: build backend + frontend, roda `aquasecurity/trivy-action` em modo scan (não bloqueia na Fase 0 — `severity: CRITICAL`, `exit-code: 1`)
   - Trigger: `push` em `develop` e `main`, `pull_request` para os dois.
