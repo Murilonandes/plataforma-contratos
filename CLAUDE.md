@@ -29,7 +29,7 @@ Esta plataforma cria contratos de venda (ZCON) no SAP S/4HANA pelo serviço ODat
 - **Parcelas:** calculadas no servidor pelo método do maior resto.
   - `Porcentagem` com 4 casas soma exatamente `100.0000`
   - `Valor` com 2 casas soma exatamente o total
-- **`StatusBlock = "06"`** é definido pelo servidor na criação. O cliente não controla.
+- **`StatusBlock = "06"`**: o mapper do nosso backend SEMPRE grava `"06"` no payload enviado ao SAP. O domínio não tem esse campo e o cliente não controla. Omitir = contrato desbloqueado.
 - Toda transição de estado grava em `contract_events`. Toda tentativa de POST grava em `contract_submissions`.
 - A plataforma DEV nunca aponta para o SAP PRD. Há um guard de startup que checa host × `APP_ENV`.
 

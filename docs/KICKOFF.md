@@ -17,21 +17,25 @@ npm i -g pyright typescript-language-server typescript
 
 ## 2. Instalar plugins (marketplace oficial da Anthropic)
 
-Dentro do `claude`, rode estes comandos com escopo **project**, para irem junto no repo:
+O escopo `project` registra os plugins em `.claude/settings.json` (versionado). Quem clonar ainda precisa instalar cada plugin uma vez (o Claude Code avisa e mostra o comando); o `settings.json` garante que todos usem o mesmo conjunto. `.claude/settings.local.json` fica gitignorado.
 
+Rode no terminal (fora da sessão do `claude`):
+
+```bash
+claude plugin install superpowers@claude-plugins-official --scope project
+claude plugin install feature-dev@claude-plugins-official --scope project
+claude plugin install security-guidance@claude-plugins-official --scope project
+claude plugin install code-review@claude-plugins-official --scope project
+claude plugin install pr-review-toolkit@claude-plugins-official --scope project
+claude plugin install context7@claude-plugins-official --scope project
+claude plugin install frontend-design@claude-plugins-official --scope project
+claude plugin install playwright@claude-plugins-official --scope project
+claude plugin install commit-commands@claude-plugins-official --scope project
+claude plugin install pyright-lsp@claude-plugins-official --scope project
+claude plugin install typescript-lsp@claude-plugins-official --scope project
 ```
-/plugin install superpowers@claude-plugins-official
-/plugin install feature-dev@claude-plugins-official
-/plugin install security-guidance@claude-plugins-official
-/plugin install code-review@claude-plugins-official
-/plugin install pr-review-toolkit@claude-plugins-official
-/plugin install context7@claude-plugins-official
-/plugin install frontend-design@claude-plugins-official
-/plugin install playwright@claude-plugins-official
-/plugin install commit-commands@claude-plugins-official
-/plugin install pyright-lsp@claude-plugins-official
-/plugin install typescript-lsp@claude-plugins-official
-```
+
+Alternativa: `/plugin install <nome>` dentro da sessão e escolha **Project scope** na tela que abre.
 
 | Plugin | Para que serve aqui |
 |---|---|
@@ -49,18 +53,22 @@ Se a skill **brfertil-design** estiver sincronizada da sua conta, o Claude Code 
 
 ### 2b. Terceiros (curados para esta stack)
 
-> ⚠️ Plugins têm acesso total à sua máquina e ao repo, e isso inclui a credencial do SAP. **Passe cada um no `auditor-de-skills` antes de instalar.** Instale no escopo **project**, não user.
+> ⚠️ Plugins de terceiros têm acesso total à sua máquina e ao repo, e isso inclui a credencial do SAP. **Passe cada um no `auditor-de-skills` antes de instalar.** Só entram no `.claude/settings.json` (versionado) depois de auditados — os plugins listados abaixo **não** estão no `enabledPlugins` deste repo hoje.
+
+> Além de instalar (`claude plugin install <nome>@<marketplace> --scope project`), o marketplace precisa estar **registrado em `extraKnownMarketplaces` no `.claude/settings.json`** para o Claude Code aceitá-lo. Ver docs para o schema exato de cada entrada.
 
 **Trail of Bits:** segurança e Python moderno. É uma empresa de auditoria de segurança de referência.
-```
-/plugin marketplace add trailofbits/skills
-/plugin install modern-python@trailofbits
-/plugin install property-based-testing@trailofbits
-/plugin install insecure-defaults@trailofbits
-/plugin install sharp-edges@trailofbits
-/plugin install differential-review@trailofbits
-/plugin install static-analysis@trailofbits
-/plugin install supply-chain-risk-auditor@trailofbits
+
+```bash
+# 1) Registre trailofbits em extraKnownMarketplaces no .claude/settings.json
+# 2) Depois, no terminal (após passar cada plugin no auditor-de-skills):
+claude plugin install modern-python@trailofbits --scope project
+claude plugin install property-based-testing@trailofbits --scope project
+claude plugin install insecure-defaults@trailofbits --scope project
+claude plugin install sharp-edges@trailofbits --scope project
+claude plugin install differential-review@trailofbits --scope project
+claude plugin install static-analysis@trailofbits --scope project
+claude plugin install supply-chain-risk-auditor@trailofbits --scope project
 ```
 | Plugin | Para que serve aqui |
 |---|---|
@@ -73,12 +81,14 @@ Se a skill **brfertil-design** estiver sincronizada da sua conta, o Claude Code 
 | `supply-chain-risk-auditor` | Audita dependências PyPI/npm |
 
 **wshobson/agents:** padrões de backend, banco e front.
-```
-/plugin marketplace add wshobson/agents
-/plugin install python-development@claude-code-workflows
-/plugin install backend-development@claude-code-workflows
-/plugin install database-design@claude-code-workflows
-/plugin install frontend-mobile-development@claude-code-workflows
+
+```bash
+# 1) Registre claude-code-workflows em extraKnownMarketplaces no .claude/settings.json
+# 2) Depois, no terminal (após passar cada plugin no auditor-de-skills):
+claude plugin install python-development@claude-code-workflows --scope project
+claude plugin install backend-development@claude-code-workflows --scope project
+claude plugin install database-design@claude-code-workflows --scope project
+claude plugin install frontend-mobile-development@claude-code-workflows --scope project
 ```
 | Plugin | Para que serve aqui |
 |---|---|
