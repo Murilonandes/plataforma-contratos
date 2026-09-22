@@ -51,5 +51,6 @@ Preencha na Fase 0 e mantenha atualizado:
 ## Qualidade antes de dizer "pronto"
 - `ruff`, `mypy --strict`, `import-linter`, `pytest` e checks do front verdes
 - Cobertura ≥ 90% em `domain/` e `application/`
+- Mensagens de erro de domínio são testadas por **igualdade exata** (`str(exc.value) == "..."`) ou `match` com `re.escape` e âncoras `^...$`. **Nunca por substring**: `pytest.raises(match=...)` faz `re.search` e deixa mutantes vivos
 - Revisão com `/code-review` (ou o agente do `pr-review-toolkit`) antes de abrir PR
 - Nenhum aviso pendente do hook `security-guidance`
