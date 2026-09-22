@@ -32,5 +32,8 @@ desktop.ini
 !.env.example
 infra/secrets/
 
+# Claude Code — user-local overrides only; project scope config vai versionado
+.claude/settings.local.json
+
 # Docker
 .docker/

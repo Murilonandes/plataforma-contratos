@@ -1,0 +1,956 @@
+<edmx:Edmx xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx" xmlns="http://docs.oasis-open.org/odata/ns/edm" Version="4.0">
+<edmx:Reference Uri="/sap/opu/odata/IWFND/CATALOGSERVICE;v=2/Vocabularies(TechnicalName='%2FIWBEP%2FVOC_COMMUNICATION',Version='0001',SAP__Origin='LOCAL')/$value">
+<edmx:Include Namespace="com.sap.vocabularies.Communication.v1" Alias="Communication"/>
+</edmx:Reference>
+<edmx:Reference Uri="/sap/opu/odata/IWFND/CATALOGSERVICE;v=2/Vocabularies(TechnicalName='%2FIWBEP%2FVOC_PERSONALDATA',Version='0001',SAP__Origin='LOCAL')/$value">
+<edmx:Include Namespace="com.sap.vocabularies.PersonalData.v1" Alias="PersonalData"/>
+</edmx:Reference>
+<edmx:Reference Uri="/sap/opu/odata/IWFND/CATALOGSERVICE;v=2/Vocabularies(TechnicalName='%2FIWBEP%2FVOC_ANALYTICS',Version='0001',SAP__Origin='LOCAL')/$value">
+<edmx:Include Namespace="com.sap.vocabularies.Analytics.v1" Alias="Analytics"/>
+</edmx:Reference>
+<edmx:Reference Uri="/sap/opu/odata/IWFND/CATALOGSERVICE;v=2/Vocabularies(TechnicalName='%2FIWBEP%2FVOC_AGGREGATION',Version='0001',SAP__Origin='LOCAL')/$value">
+<edmx:Include Namespace="Org.OData.Aggregation.V1" Alias="SAP__aggregation"/>
+</edmx:Reference>
+<edmx:Reference Uri="/sap/opu/odata/IWFND/CATALOGSERVICE;v=2/Vocabularies(TechnicalName='%2FIWBEP%2FVOC_CAPABILITIES',Version='0001',SAP__Origin='LOCAL')/$value">
+<edmx:Include Namespace="Org.OData.Capabilities.V1" Alias="SAP__capabilities"/>
+</edmx:Reference>
+<edmx:Reference Uri="/sap/opu/odata/IWFND/CATALOGSERVICE;v=2/Vocabularies(TechnicalName='%2FIWBEP%2FVOC_CODELIST',Version='0001',SAP__Origin='LOCAL')/$value">
+<edmx:Include Namespace="com.sap.vocabularies.CodeList.v1" Alias="SAP__CodeList"/>
+</edmx:Reference>
+<edmx:Reference Uri="/sap/opu/odata/IWFND/CATALOGSERVICE;v=2/Vocabularies(TechnicalName='%2FIWBEP%2FVOC_COMMON',Version='0001',SAP__Origin='LOCAL')/$value">
+<edmx:Include Namespace="com.sap.vocabularies.Common.v1" Alias="SAP__common"/>
+</edmx:Reference>
+<edmx:Reference Uri="/sap/opu/odata/IWFND/CATALOGSERVICE;v=2/Vocabularies(TechnicalName='%2FIWBEP%2FVOC_CORE',Version='0001',SAP__Origin='LOCAL')/$value">
+<edmx:Include Namespace="Org.OData.Core.V1" Alias="SAP__core"/>
+</edmx:Reference>
+<edmx:Reference Uri="/sap/opu/odata/IWFND/CATALOGSERVICE;v=2/Vocabularies(TechnicalName='%2FIWBEP%2FVOC_HIERARCHY',Version='0001',SAP__Origin='LOCAL')/$value">
+<edmx:Include Namespace="com.sap.vocabularies.Hierarchy.v1" Alias="SAP__hierarchy"/>
+</edmx:Reference>
+<edmx:Reference Uri="/sap/opu/odata/IWFND/CATALOGSERVICE;v=2/Vocabularies(TechnicalName='%2FIWBEP%2FVOC_HTML5',Version='0001',SAP__Origin='LOCAL')/$value">
+<edmx:Include Namespace="com.sap.vocabularies.HTML5.v1" Alias="SAP__HTML5"/>
+</edmx:Reference>
+<edmx:Reference Uri="/sap/opu/odata/IWFND/CATALOGSERVICE;v=2/Vocabularies(TechnicalName='%2FIWBEP%2FVOC_MEASURES',Version='0001',SAP__Origin='LOCAL')/$value">
+<edmx:Include Namespace="Org.OData.Measures.V1" Alias="SAP__measures"/>
+</edmx:Reference>
+<edmx:Reference Uri="/sap/opu/odata/IWFND/CATALOGSERVICE;v=2/Vocabularies(TechnicalName='%2FIWBEP%2FVOC_ODM',Version='0001',SAP__Origin='LOCAL')/$value">
+<edmx:Include Namespace="com.sap.vocabularies.ODM.v1" Alias="SAP__ODM"/>
+</edmx:Reference>
+<edmx:Reference Uri="/sap/opu/odata/IWFND/CATALOGSERVICE;v=2/Vocabularies(TechnicalName='%2FIWBEP%2FVOC_PDF',Version='0001',SAP__Origin='LOCAL')/$value">
+<edmx:Include Namespace="com.sap.vocabularies.PDF.v1" Alias="SAP__PDF"/>
+</edmx:Reference>
+<edmx:Reference Uri="/sap/opu/odata/IWFND/CATALOGSERVICE;v=2/Vocabularies(TechnicalName='%2FIWBEP%2FVOC_SESSION',Version='0001',SAP__Origin='LOCAL')/$value">
+<edmx:Include Namespace="com.sap.vocabularies.Session.v1" Alias="SAP__session"/>
+</edmx:Reference>
+<edmx:Reference Uri="/sap/opu/odata/IWFND/CATALOGSERVICE;v=2/Vocabularies(TechnicalName='%2FIWBEP%2FVOC_UI',Version='0001',SAP__Origin='LOCAL')/$value">
+<edmx:Include Namespace="com.sap.vocabularies.UI.v1" Alias="SAP__UI"/>
+</edmx:Reference>
+<edmx:Reference Uri="/sap/opu/odata/IWFND/CATALOGSERVICE;v=2/Vocabularies(TechnicalName='%2FIWBEP%2FVOC_VALIDATION',Version='0001',SAP__Origin='LOCAL')/$value">
+<edmx:Include Namespace="Org.OData.Validation.V1" Alias="SAP__validation"/>
+</edmx:Reference>
+<edmx:DataServices>
+<Schema Namespace="com.sap.gateway.srvd_a2x.zapi_contrato_vendas.v0001" Alias="SAP__self">
+<Annotation Term="SAP__core.SchemaVersion" String="1.0.0"/>
+<EntityType Name="TextosContratoType">
+<Key>
+<PropertyRef Name="SalesContract"/>
+<PropertyRef Name="Language"/>
+<PropertyRef Name="LongTextID"/>
+</Key>
+<Property Name="SalesContract" Type="Edm.String" Nullable="false" MaxLength="10"/>
+<Property Name="Language" Type="Edm.String" Nullable="false" MaxLength="2"/>
+<Property Name="LongTextID" Type="Edm.String" Nullable="false" MaxLength="4"/>
+<Property Name="LongText" Type="Edm.String" Nullable="false"/>
+<NavigationProperty Name="_Contract" Type="com.sap.gateway.srvd_a2x.zapi_contrato_vendas.v0001.CriaContratoType" Nullable="false" Partner="to_Text">
+<ReferentialConstraint Property="SalesContract" ReferencedProperty="SalesContract"/>
+</NavigationProperty>
+</EntityType>
+<EntityType Name="PrecosCabecalhoType">
+<Key>
+<PropertyRef Name="SalesContract"/>
+<PropertyRef Name="ConditionUUID"/>
+</Key>
+<Property Name="SalesContract" Type="Edm.String" Nullable="false" MaxLength="10"/>
+<Property Name="ConditionUUID" Type="Edm.Guid" Nullable="false"/>
+<Property Name="ConditionType" Type="Edm.String" Nullable="false" MaxLength="4"/>
+<Property Name="ConditionRateValue" Type="Edm.Decimal" Nullable="false" Precision="23" Scale="9"/>
+<NavigationProperty Name="_Contract" Type="com.sap.gateway.srvd_a2x.zapi_contrato_vendas.v0001.CriaContratoType" Nullable="false" Partner="to_PricingElement">
+<ReferentialConstraint Property="SalesContract" ReferencedProperty="SalesContract"/>
+</NavigationProperty>
+</EntityType>
+<EntityType Name="CriaContratoType">
+<Key>
+<PropertyRef Name="SalesContract"/>
+</Key>
+<Property Name="SalesContract" Type="Edm.String" Nullable="false" MaxLength="10"/>
+<Property Name="SalesContractType" Type="Edm.String" Nullable="false" MaxLength="4"/>
+<Property Name="SalesOrganization" Type="Edm.String" Nullable="false" MaxLength="4"/>
+<Property Name="DistributionChannel" Type="Edm.String" Nullable="false" MaxLength="2"/>
+<Property Name="OrganizationDivision" Type="Edm.String" Nullable="false" MaxLength="2"/>
+<Property Name="SalesOffice" Type="Edm.String" Nullable="false" MaxLength="4"/>
+<Property Name="SalesGroup" Type="Edm.String" Nullable="false" MaxLength="3"/>
+<Property Name="SDDocumentReason" Type="Edm.String" Nullable="false" MaxLength="3"/>
+<Property Name="SoldToParty" Type="Edm.String" Nullable="false" MaxLength="10"/>
+<Property Name="TransactionCurrency" Type="Edm.String" Nullable="false" MaxLength="3"/>
+<Property Name="IncotermsClassification" Type="Edm.String" Nullable="false" MaxLength="3"/>
+<Property Name="IncotermsLocation1" Type="Edm.String" Nullable="false" MaxLength="70"/>
+<Property Name="CustomerPaymentTerms" Type="Edm.String" Nullable="false" MaxLength="4"/>
+<Property Name="PurchaseOrderByCustomer" Type="Edm.String" Nullable="false" MaxLength="35"/>
+<Property Name="CustomerPurchaseOrderDate" Type="Edm.Date"/>
+<Property Name="SalesContractValidityEndDate" Type="Edm.Date"/>
+<Property Name="NotaInternaCli" Type="Edm.String" Nullable="false"/>
+<Property Name="PedidoSysFertil" Type="Edm.String" Nullable="false"/>
+<Property Name="CodTaxa" Type="Edm.String" Nullable="false" MaxLength="20"/>
+<Property Name="StatusBlock" Type="Edm.String" Nullable="false" MaxLength="2"/>
+<NavigationProperty Name="to_FormPag" Type="Collection(com.sap.gateway.srvd_a2x.zapi_contrato_vendas.v0001.ParcelasContratoType)" Partner="_Contract">
+<OnDelete Action="Cascade"/>
+</NavigationProperty>
+<NavigationProperty Name="to_Item" Type="Collection(com.sap.gateway.srvd_a2x.zapi_contrato_vendas.v0001.ItensContratoType)" Partner="_Contract">
+<OnDelete Action="Cascade"/>
+</NavigationProperty>
+<NavigationProperty Name="to_Partner" Type="Collection(com.sap.gateway.srvd_a2x.zapi_contrato_vendas.v0001.ParceirosContratoType)" Partner="_Contract">
+<OnDelete Action="Cascade"/>
+</NavigationProperty>
+<NavigationProperty Name="to_PricingElement" Type="Collection(com.sap.gateway.srvd_a2x.zapi_contrato_vendas.v0001.PrecosCabecalhoType)" Partner="_Contract">
+<OnDelete Action="Cascade"/>
+</NavigationProperty>
+<NavigationProperty Name="to_Text" Type="Collection(com.sap.gateway.srvd_a2x.zapi_contrato_vendas.v0001.TextosContratoType)" Partner="_Contract">
+<OnDelete Action="Cascade"/>
+</NavigationProperty>
+</EntityType>
+<EntityType Name="AlteraStatusContratoType">
+<Key>
+<PropertyRef Name="SalesContract"/>
+</Key>
+<Property Name="SalesContract" Type="Edm.String" Nullable="false" MaxLength="10"/>
+<Property Name="StatusBlock" Type="Edm.String" Nullable="false" MaxLength="2"/>
+<Property Name="SAP__Messages" Type="Collection(com.sap.gateway.srvd_a2x.zapi_contrato_vendas.v0001.SAP__Message)" Nullable="false"/>
+</EntityType>
+<EntityType Name="ItensContratoType">
+<Key>
+<PropertyRef Name="SalesContract"/>
+<PropertyRef Name="SalesContractItem"/>
+</Key>
+<Property Name="SalesContract" Type="Edm.String" Nullable="false" MaxLength="10"/>
+<Property Name="SalesContractItem" Type="Edm.String" Nullable="false" MaxLength="6"/>
+<Property Name="SalesContractItemText" Type="Edm.String" Nullable="false" MaxLength="40"/>
+<Property Name="Material" Type="Edm.String" Nullable="false" MaxLength="40"/>
+<Property Name="RequestedQuantity" Type="Edm.Decimal" Nullable="false" Precision="15" Scale="3"/>
+<Property Name="RequestedQuantityUnit" Type="Edm.String" Nullable="false" MaxLength="3"/>
+<Property Name="Plant" Type="Edm.String" Nullable="false" MaxLength="4"/>
+<Property Name="IncotermsClassification" Type="Edm.String" Nullable="false" MaxLength="3"/>
+<Property Name="IncotermsLocation1" Type="Edm.String" Nullable="false" MaxLength="70"/>
+<Property Name="TransactionCurrency" Type="Edm.String" Nullable="false" MaxLength="3"/>
+<Property Name="Culture" Type="Edm.String" Nullable="false"/>
+<Property Name="ScheduleDate" Type="Edm.Date"/>
+<Property Name="ScheduleDate2" Type="Edm.Date"/>
+<Property Name="CustomerPaymentTerms" Type="Edm.String" Nullable="false" MaxLength="4"/>
+<NavigationProperty Name="to_PricingElement" Type="Collection(com.sap.gateway.srvd_a2x.zapi_contrato_vendas.v0001.PrecosItemType)" Partner="_Item">
+<OnDelete Action="Cascade"/>
+</NavigationProperty>
+<NavigationProperty Name="_Contract" Type="com.sap.gateway.srvd_a2x.zapi_contrato_vendas.v0001.CriaContratoType" Nullable="false" Partner="to_Item">
+<ReferentialConstraint Property="SalesContract" ReferencedProperty="SalesContract"/>
+</NavigationProperty>
+</EntityType>
+<EntityType Name="ParceirosContratoType">
+<Key>
+<PropertyRef Name="SalesContract"/>
+<PropertyRef Name="PartnerFunction"/>
+</Key>
+<Property Name="SalesContract" Type="Edm.String" Nullable="false" MaxLength="10"/>
+<Property Name="PartnerFunction" Type="Edm.String" Nullable="false" MaxLength="2"/>
+<Property Name="Customer" Type="Edm.String" Nullable="false" MaxLength="10"/>
+<Property Name="Supplier" Type="Edm.String" Nullable="false" MaxLength="10"/>
+<Property Name="Personnel" Type="Edm.String" Nullable="false" MaxLength="8"/>
+<Property Name="ContactPerson" Type="Edm.String" Nullable="false" MaxLength="10"/>
+<NavigationProperty Name="_Contract" Type="com.sap.gateway.srvd_a2x.zapi_contrato_vendas.v0001.CriaContratoType" Nullable="false" Partner="to_Partner">
+<ReferentialConstraint Property="SalesContract" ReferencedProperty="SalesContract"/>
+</NavigationProperty>
+</EntityType>
+<EntityType Name="PrecosItemType">
+<Key>
+<PropertyRef Name="SalesContract"/>
+<PropertyRef Name="SalesContractItem"/>
+<PropertyRef Name="ConditionUUID"/>
+</Key>
+<Property Name="SalesContract" Type="Edm.String" Nullable="false" MaxLength="10"/>
+<Property Name="SalesContractItem" Type="Edm.String" Nullable="false" MaxLength="6"/>
+<Property Name="ConditionUUID" Type="Edm.Guid" Nullable="false"/>
+<Property Name="ConditionType" Type="Edm.String" Nullable="false" MaxLength="4"/>
+<Property Name="ConditionRateValue" Type="Edm.Decimal" Nullable="false" Precision="23" Scale="9"/>
+<NavigationProperty Name="_Contract" Type="com.sap.gateway.srvd_a2x.zapi_contrato_vendas.v0001.CriaContratoType" Nullable="false">
+<ReferentialConstraint Property="SalesContract" ReferencedProperty="SalesContract"/>
+</NavigationProperty>
+<NavigationProperty Name="_Item" Type="com.sap.gateway.srvd_a2x.zapi_contrato_vendas.v0001.ItensContratoType" Nullable="false" Partner="to_PricingElement">
+<ReferentialConstraint Property="SalesContract" ReferencedProperty="SalesContract"/>
+<ReferentialConstraint Property="SalesContractItem" ReferencedProperty="SalesContractItem"/>
+</NavigationProperty>
+</EntityType>
+<EntityType Name="ParcelasContratoType">
+<Key>
+<PropertyRef Name="SalesContract"/>
+<PropertyRef Name="Parcela"/>
+</Key>
+<Property Name="SalesContract" Type="Edm.String" Nullable="false" MaxLength="10"/>
+<Property Name="Parcela" Type="Edm.Int32" Nullable="false"/>
+<Property Name="Porcentagem" Type="Edm.Decimal" Nullable="false" Precision="15" Scale="4"/>
+<Property Name="Valor" Type="Edm.Decimal" Nullable="false" Precision="15" Scale="variable"/>
+<Property Name="Data" Type="Edm.Date"/>
+<Property Name="FormPag" Type="Edm.String" Nullable="false" MaxLength="1"/>
+<Property Name="TransactionCurrency" Type="Edm.String" Nullable="false" MaxLength="3"/>
+<NavigationProperty Name="_Contract" Type="com.sap.gateway.srvd_a2x.zapi_contrato_vendas.v0001.CriaContratoType" Nullable="false" Partner="to_FormPag">
+<ReferentialConstraint Property="SalesContract" ReferencedProperty="SalesContract"/>
+</NavigationProperty>
+</EntityType>
+<ComplexType Name="SAP__Message">
+<Property Name="code" Type="Edm.String" Nullable="false"/>
+<Property Name="message" Type="Edm.String" Nullable="false"/>
+<Property Name="target" Type="Edm.String"/>
+<Property Name="additionalTargets" Type="Collection(Edm.String)" Nullable="false"/>
+<Property Name="transition" Type="Edm.Boolean" Nullable="false"/>
+<Property Name="numericSeverity" Type="Edm.Byte" Nullable="false"/>
+<Property Name="longtextUrl" Type="Edm.String"/>
+</ComplexType>
+<EntityContainer Name="Container">
+<EntitySet Name="AlteraStatusContrato" EntityType="com.sap.gateway.srvd_a2x.zapi_contrato_vendas.v0001.AlteraStatusContratoType"/>
+<EntitySet Name="CriaContrato" EntityType="com.sap.gateway.srvd_a2x.zapi_contrato_vendas.v0001.CriaContratoType">
+<NavigationPropertyBinding Path="to_FormPag" Target="ParcelasContrato"/>
+<NavigationPropertyBinding Path="to_Item" Target="ItensContrato"/>
+<NavigationPropertyBinding Path="to_Partner" Target="ParceirosContrato"/>
+<NavigationPropertyBinding Path="to_PricingElement" Target="PrecosCabecalho"/>
+<NavigationPropertyBinding Path="to_Text" Target="TextosContrato"/>
+</EntitySet>
+<EntitySet Name="ItensContrato" EntityType="com.sap.gateway.srvd_a2x.zapi_contrato_vendas.v0001.ItensContratoType">
+<NavigationPropertyBinding Path="to_PricingElement" Target="PrecosItem"/>
+<NavigationPropertyBinding Path="_Contract" Target="CriaContrato"/>
+</EntitySet>
+<EntitySet Name="ParceirosContrato" EntityType="com.sap.gateway.srvd_a2x.zapi_contrato_vendas.v0001.ParceirosContratoType">
+<NavigationPropertyBinding Path="_Contract" Target="CriaContrato"/>
+</EntitySet>
+<EntitySet Name="ParcelasContrato" EntityType="com.sap.gateway.srvd_a2x.zapi_contrato_vendas.v0001.ParcelasContratoType">
+<NavigationPropertyBinding Path="_Contract" Target="CriaContrato"/>
+</EntitySet>
+<EntitySet Name="PrecosCabecalho" EntityType="com.sap.gateway.srvd_a2x.zapi_contrato_vendas.v0001.PrecosCabecalhoType">
+<NavigationPropertyBinding Path="_Contract" Target="CriaContrato"/>
+</EntitySet>
+<EntitySet Name="PrecosItem" EntityType="com.sap.gateway.srvd_a2x.zapi_contrato_vendas.v0001.PrecosItemType">
+<NavigationPropertyBinding Path="_Contract" Target="CriaContrato"/>
+<NavigationPropertyBinding Path="_Item" Target="ItensContrato"/>
+</EntitySet>
+<EntitySet Name="TextosContrato" EntityType="com.sap.gateway.srvd_a2x.zapi_contrato_vendas.v0001.TextosContratoType">
+<NavigationPropertyBinding Path="_Contract" Target="CriaContrato"/>
+</EntitySet>
+</EntityContainer>
+<Annotations Target="SAP__self.TextosContratoType/SalesContract">
+<Annotation Term="SAP__core.Computed"/>
+<Annotation Term="SAP__common.IsUpperCase"/>
+<Annotation Term="SAP__common.Label" String="Documento SD"/>
+<Annotation Term="SAP__common.Heading" String="Documento"/>
+<Annotation Term="SAP__common.QuickInfo" String="Número do documento de vendas e distribuição"/>
+<Annotation Term="SAP__common.DocumentationRef" String="urn:sap-com:documentation:key?=type=DE&id=VBELN"/>
+</Annotations>
+<Annotations Target="SAP__self.TextosContratoType/Language">
+<Annotation Term="SAP__common.FieldControl" EnumMember="SAP__common.FieldControlType/Mandatory"/>
+</Annotations>
+<Annotations Target="SAP__self.TextosContratoType/LongTextID">
+<Annotation Term="SAP__common.FieldControl" EnumMember="SAP__common.FieldControlType/Mandatory"/>
+</Annotations>
+<Annotations Target="SAP__self.TextosContratoType">
+<Annotation Term="SAP__common.Label" String="API de contrato de vendas - Textos"/>
+</Annotations>
+<Annotations Target="SAP__self.Container/TextosContrato">
+<Annotation Term="SAP__capabilities.SearchRestrictions">
+<Record>
+<PropertyValue Property="Searchable" Bool="false"/>
+</Record>
+</Annotation>
+<Annotation Term="SAP__capabilities.FilterRestrictions">
+<Record>
+<PropertyValue Property="Filterable" Bool="true"/>
+<PropertyValue Property="FilterExpressionRestrictions">
+<Collection>
+<Record>
+<PropertyValue Property="Property" PropertyPath="LongText"/>
+<PropertyValue Property="AllowedExpressions" String="SearchExpression"/>
+</Record>
+</Collection>
+</PropertyValue>
+</Record>
+</Annotation>
+<Annotation Term="SAP__capabilities.SortRestrictions">
+<Record>
+<PropertyValue Property="NonSortableProperties">
+<Collection>
+<PropertyPath>LongText</PropertyPath>
+</Collection>
+</PropertyValue>
+</Record>
+</Annotation>
+<Annotation Term="SAP__capabilities.ReadRestrictions">
+<Record>
+<PropertyValue Property="Readable" Bool="false"/>
+</Record>
+</Annotation>
+<Annotation Term="SAP__capabilities.InsertRestrictions">
+<Record>
+<PropertyValue Property="Insertable" Bool="false"/>
+</Record>
+</Annotation>
+<Annotation Term="SAP__capabilities.DeleteRestrictions">
+<Record>
+<PropertyValue Property="Deletable" Bool="false"/>
+</Record>
+</Annotation>
+<Annotation Term="SAP__capabilities.UpdateRestrictions">
+<Record>
+<PropertyValue Property="Updatable" Bool="false"/>
+<PropertyValue Property="NonUpdatableNavigationProperties">
+<Collection>
+<PropertyPath>_Contract</PropertyPath>
+</Collection>
+</PropertyValue>
+<PropertyValue Property="QueryOptions">
+<Record>
+<PropertyValue Property="SelectSupported" Bool="true"/>
+</Record>
+</PropertyValue>
+</Record>
+</Annotation>
+</Annotations>
+<Annotations Target="SAP__self.PrecosCabecalhoType/SalesContract">
+<Annotation Term="SAP__core.Computed"/>
+<Annotation Term="SAP__common.IsUpperCase"/>
+<Annotation Term="SAP__common.Label" String="Documento SD"/>
+<Annotation Term="SAP__common.Heading" String="Documento"/>
+<Annotation Term="SAP__common.QuickInfo" String="Número do documento de vendas e distribuição"/>
+<Annotation Term="SAP__common.DocumentationRef" String="urn:sap-com:documentation:key?=type=DE&id=VBELN"/>
+</Annotations>
+<Annotations Target="SAP__self.PrecosCabecalhoType/ConditionUUID">
+<Annotation Term="SAP__core.Computed"/>
+<Annotation Term="SAP__common.Label" String="UUID"/>
+<Annotation Term="SAP__common.QuickInfo" String="16 Byte UUID in 16 Bytes (Raw Format)"/>
+</Annotations>
+<Annotations Target="SAP__self.PrecosCabecalhoType/ConditionType">
+<Annotation Term="SAP__common.FieldControl" EnumMember="SAP__common.FieldControlType/Mandatory"/>
+</Annotations>
+<Annotations Target="SAP__self.PrecosCabecalhoType">
+<Annotation Term="SAP__common.Label" String="API de contrato - Condições do cabeçalho"/>
+</Annotations>
+<Annotations Target="SAP__self.Container/PrecosCabecalho">
+<Annotation Term="SAP__capabilities.SearchRestrictions">
+<Record>
+<PropertyValue Property="Searchable" Bool="false"/>
+</Record>
+</Annotation>
+<Annotation Term="SAP__capabilities.ReadRestrictions">
+<Record>
+<PropertyValue Property="Readable" Bool="false"/>
+</Record>
+</Annotation>
+<Annotation Term="SAP__capabilities.InsertRestrictions">
+<Record>
+<PropertyValue Property="Insertable" Bool="false"/>
+</Record>
+</Annotation>
+<Annotation Term="SAP__capabilities.DeleteRestrictions">
+<Record>
+<PropertyValue Property="Deletable" Bool="false"/>
+</Record>
+</Annotation>
+<Annotation Term="SAP__capabilities.UpdateRestrictions">
+<Record>
+<PropertyValue Property="Updatable" Bool="false"/>
+<PropertyValue Property="NonUpdatableNavigationProperties">
+<Collection>
+<PropertyPath>_Contract</PropertyPath>
+</Collection>
+</PropertyValue>
+<PropertyValue Property="QueryOptions">
+<Record>
+<PropertyValue Property="SelectSupported" Bool="true"/>
+</Record>
+</PropertyValue>
+</Record>
+</Annotation>
+</Annotations>
+<Annotations Target="SAP__self.CriaContratoType/SalesContract">
+<Annotation Term="SAP__core.Computed"/>
+<Annotation Term="SAP__common.IsUpperCase"/>
+<Annotation Term="SAP__common.Label" String="Documento SD"/>
+<Annotation Term="SAP__common.Heading" String="Documento"/>
+<Annotation Term="SAP__common.QuickInfo" String="Número do documento de vendas e distribuição"/>
+<Annotation Term="SAP__common.DocumentationRef" String="urn:sap-com:documentation:key?=type=DE&id=VBELN"/>
+</Annotations>
+<Annotations Target="SAP__self.CriaContratoType/SalesContractType">
+<Annotation Term="SAP__common.FieldControl" EnumMember="SAP__common.FieldControlType/Mandatory"/>
+</Annotations>
+<Annotations Target="SAP__self.CriaContratoType/SalesOrganization">
+<Annotation Term="SAP__common.FieldControl" EnumMember="SAP__common.FieldControlType/Mandatory"/>
+</Annotations>
+<Annotations Target="SAP__self.CriaContratoType/DistributionChannel">
+<Annotation Term="SAP__common.FieldControl" EnumMember="SAP__common.FieldControlType/Mandatory"/>
+</Annotations>
+<Annotations Target="SAP__self.CriaContratoType/OrganizationDivision">
+<Annotation Term="SAP__common.FieldControl" EnumMember="SAP__common.FieldControlType/Mandatory"/>
+</Annotations>
+<Annotations Target="SAP__self.CriaContratoType/SoldToParty">
+<Annotation Term="SAP__common.FieldControl" EnumMember="SAP__common.FieldControlType/Mandatory"/>
+</Annotations>
+<Annotations Target="SAP__self.CriaContratoType/TransactionCurrency">
+<Annotation Term="SAP__common.IsCurrency"/>
+<Annotation Term="SAP__common.FieldControl" EnumMember="SAP__common.FieldControlType/Mandatory"/>
+</Annotations>
+<Annotations Target="SAP__self.CriaContratoType/to_FormPag">
+<Annotation Term="SAP__common.Composition"/>
+</Annotations>
+<Annotations Target="SAP__self.Container/CriaContrato">
+<Annotation Term="SAP__capabilities.NavigationRestrictions">
+<Record>
+<PropertyValue Property="RestrictedProperties">
+<Collection>
+<Record>
+<PropertyValue Property="NavigationProperty" NavigationPropertyPath="to_FormPag"/>
+<PropertyValue Property="InsertRestrictions">
+<Record>
+<PropertyValue Property="Insertable" Bool="true"/>
+</Record>
+</PropertyValue>
+</Record>
+<Record>
+<PropertyValue Property="NavigationProperty" NavigationPropertyPath="to_Item"/>
+<PropertyValue Property="InsertRestrictions">
+<Record>
+<PropertyValue Property="Insertable" Bool="true"/>
+</Record>
+</PropertyValue>
+</Record>
+<Record>
+<PropertyValue Property="NavigationProperty" NavigationPropertyPath="to_Partner"/>
+<PropertyValue Property="InsertRestrictions">
+<Record>
+<PropertyValue Property="Insertable" Bool="true"/>
+</Record>
+</PropertyValue>
+</Record>
+<Record>
+<PropertyValue Property="NavigationProperty" NavigationPropertyPath="to_PricingElement"/>
+<PropertyValue Property="InsertRestrictions">
+<Record>
+<PropertyValue Property="Insertable" Bool="true"/>
+</Record>
+</PropertyValue>
+</Record>
+<Record>
+<PropertyValue Property="NavigationProperty" NavigationPropertyPath="to_Text"/>
+<PropertyValue Property="InsertRestrictions">
+<Record>
+<PropertyValue Property="Insertable" Bool="true"/>
+</Record>
+</PropertyValue>
+</Record>
+</Collection>
+</PropertyValue>
+</Record>
+</Annotation>
+<Annotation Term="SAP__capabilities.SearchRestrictions">
+<Record>
+<PropertyValue Property="Searchable" Bool="false"/>
+</Record>
+</Annotation>
+<Annotation Term="SAP__capabilities.FilterRestrictions">
+<Record>
+<PropertyValue Property="Filterable" Bool="true"/>
+<PropertyValue Property="FilterExpressionRestrictions">
+<Collection>
+<Record>
+<PropertyValue Property="Property" PropertyPath="NotaInternaCli"/>
+<PropertyValue Property="AllowedExpressions" String="SearchExpression"/>
+</Record>
+<Record>
+<PropertyValue Property="Property" PropertyPath="PedidoSysFertil"/>
+<PropertyValue Property="AllowedExpressions" String="SearchExpression"/>
+</Record>
+</Collection>
+</PropertyValue>
+</Record>
+</Annotation>
+<Annotation Term="SAP__capabilities.SortRestrictions">
+<Record>
+<PropertyValue Property="NonSortableProperties">
+<Collection>
+<PropertyPath>NotaInternaCli</PropertyPath>
+<PropertyPath>PedidoSysFertil</PropertyPath>
+</Collection>
+</PropertyValue>
+</Record>
+</Annotation>
+<Annotation Term="SAP__capabilities.ReadRestrictions">
+<Record>
+<PropertyValue Property="Readable" Bool="false"/>
+</Record>
+</Annotation>
+<Annotation Term="SAP__capabilities.DeleteRestrictions">
+<Record>
+<PropertyValue Property="Deletable" Bool="false"/>
+</Record>
+</Annotation>
+<Annotation Term="SAP__capabilities.UpdateRestrictions">
+<Record>
+<PropertyValue Property="Updatable" Bool="false"/>
+<PropertyValue Property="NonUpdatableNavigationProperties">
+<Collection>
+<PropertyPath>to_FormPag</PropertyPath>
+<PropertyPath>to_Item</PropertyPath>
+<PropertyPath>to_Partner</PropertyPath>
+<PropertyPath>to_PricingElement</PropertyPath>
+<PropertyPath>to_Text</PropertyPath>
+</Collection>
+</PropertyValue>
+<PropertyValue Property="QueryOptions">
+<Record>
+<PropertyValue Property="SelectSupported" Bool="true"/>
+</Record>
+</PropertyValue>
+</Record>
+</Annotation>
+</Annotations>
+<Annotations Target="SAP__self.CriaContratoType/to_Item">
+<Annotation Term="SAP__common.Composition"/>
+</Annotations>
+<Annotations Target="SAP__self.CriaContratoType/to_Partner">
+<Annotation Term="SAP__common.Composition"/>
+</Annotations>
+<Annotations Target="SAP__self.CriaContratoType/to_PricingElement">
+<Annotation Term="SAP__common.Composition"/>
+</Annotations>
+<Annotations Target="SAP__self.CriaContratoType/to_Text">
+<Annotation Term="SAP__common.Composition"/>
+</Annotations>
+<Annotations Target="SAP__self.CriaContratoType">
+<Annotation Term="SAP__common.Label" String="API de contrato de vendas"/>
+</Annotations>
+<Annotations Target="SAP__self.Container">
+<Annotation Term="SAP__CodeList.CurrencyCodes">
+<Record>
+<PropertyValue Property="Url" String="../../../../default/iwbep/common/0001/$metadata"/>
+<PropertyValue Property="CollectionPath" String="Currencies"/>
+</Record>
+</Annotation>
+<Annotation Term="SAP__CodeList.UnitsOfMeasure">
+<Record>
+<PropertyValue Property="Url" String="../../../../default/iwbep/common/0001/$metadata"/>
+<PropertyValue Property="CollectionPath" String="UnitsOfMeasure"/>
+</Record>
+</Annotation>
+<Annotation Term="SAP__common.ApplyMultiUnitBehaviorForSortingAndFiltering" Bool="true"/>
+<Annotation Term="SAP__capabilities.FilterFunctions">
+<Collection>
+<String>eq</String>
+<String>ne</String>
+<String>gt</String>
+<String>ge</String>
+<String>lt</String>
+<String>le</String>
+<String>and</String>
+<String>or</String>
+<String>contains</String>
+<String>startswith</String>
+<String>endswith</String>
+<String>any</String>
+<String>all</String>
+</Collection>
+</Annotation>
+<Annotation Term="SAP__capabilities.SupportedFormats">
+<Collection>
+<String>application/json</String>
+<String>application/pdf</String>
+</Collection>
+</Annotation>
+<Annotation Term="SAP__PDF.Features">
+<Record>
+<PropertyValue Property="DocumentDescriptionReference" String="../../../../default/iwbep/common/0001/$metadata"/>
+<PropertyValue Property="DocumentDescriptionCollection" String="MyDocumentDescriptions"/>
+<PropertyValue Property="ArchiveFormat" Bool="true"/>
+<PropertyValue Property="Border" Bool="true"/>
+<PropertyValue Property="CoverPage" Bool="true"/>
+<PropertyValue Property="FitToPage" Bool="true"/>
+<PropertyValue Property="FontName" Bool="true"/>
+<PropertyValue Property="FontSize" Bool="true"/>
+<PropertyValue Property="HeaderFooter" Bool="true"/>
+<PropertyValue Property="IANATimezoneFormat" Bool="true"/>
+<PropertyValue Property="Margin" Bool="true"/>
+<PropertyValue Property="Padding" Bool="true"/>
+<PropertyValue Property="ResultSizeDefault" Int="20000"/>
+<PropertyValue Property="ResultSizeMaximum" Int="20000"/>
+<PropertyValue Property="Signature" Bool="true"/>
+<PropertyValue Property="TextDirectionLayout" Bool="true"/>
+<PropertyValue Property="Treeview" Bool="true"/>
+<PropertyValue Property="UploadToFileShare" Bool="true"/>
+</Record>
+</Annotation>
+<Annotation Term="SAP__capabilities.KeyAsSegmentSupported"/>
+<Annotation Term="SAP__capabilities.AsynchronousRequestsSupported"/>
+</Annotations>
+<Annotations Target="SAP__self.AlteraStatusContratoType/SalesContract">
+<Annotation Term="SAP__common.Label" String="Contrato de vendas"/>
+<Annotation Term="SAP__core.Computed"/>
+<Annotation Term="SAP__common.IsUpperCase"/>
+<Annotation Term="SAP__common.Heading" String="Doc.venda"/>
+<Annotation Term="SAP__common.QuickInfo" String="Documento de vendas"/>
+<Annotation Term="SAP__common.DocumentationRef" String="urn:sap-com:documentation:key?=type=DE&id=VBELN_VA"/>
+</Annotations>
+<Annotations Target="SAP__self.AlteraStatusContratoType/StatusBlock">
+<Annotation Term="SAP__common.Label" String="Status do contrato"/>
+</Annotations>
+<Annotations Target="SAP__self.AlteraStatusContratoType">
+<Annotation Term="SAP__common.Label" String="Status do contrato de vendas"/>
+<Annotation Term="SAP__common.Messages" Path="SAP__Messages"/>
+</Annotations>
+<Annotations Target="SAP__self.Container/AlteraStatusContrato">
+<Annotation Term="SAP__capabilities.SearchRestrictions">
+<Record>
+<PropertyValue Property="Searchable" Bool="false"/>
+</Record>
+</Annotation>
+<Annotation Term="SAP__capabilities.UpdateRestrictions">
+<Record>
+<PropertyValue Property="DeltaUpdateSupported" Bool="true"/>
+<PropertyValue Property="QueryOptions">
+<Record>
+<PropertyValue Property="SelectSupported" Bool="true"/>
+</Record>
+</PropertyValue>
+</Record>
+</Annotation>
+<Annotation Term="SAP__capabilities.DeepUpdateSupport">
+<Record>
+<PropertyValue Property="ContentIDSupported" Bool="true"/>
+</Record>
+</Annotation>
+<Annotation Term="SAP__capabilities.InsertRestrictions">
+<Record>
+<PropertyValue Property="Insertable" Bool="false"/>
+</Record>
+</Annotation>
+<Annotation Term="SAP__capabilities.DeleteRestrictions">
+<Record>
+<PropertyValue Property="Deletable" Bool="false"/>
+</Record>
+</Annotation>
+</Annotations>
+<Annotations Target="SAP__self.ItensContratoType/SalesContract">
+<Annotation Term="SAP__core.Computed"/>
+<Annotation Term="SAP__common.IsUpperCase"/>
+<Annotation Term="SAP__common.Label" String="Documento SD"/>
+<Annotation Term="SAP__common.Heading" String="Documento"/>
+<Annotation Term="SAP__common.QuickInfo" String="Número do documento de vendas e distribuição"/>
+<Annotation Term="SAP__common.DocumentationRef" String="urn:sap-com:documentation:key?=type=DE&id=VBELN"/>
+</Annotations>
+<Annotations Target="SAP__self.ItensContratoType/SalesContractItem">
+<Annotation Term="SAP__core.Computed"/>
+<Annotation Term="SAP__common.IsDigitSequence"/>
+</Annotations>
+<Annotations Target="SAP__self.ItensContratoType/Material">
+<Annotation Term="SAP__common.FieldControl" EnumMember="SAP__common.FieldControlType/Mandatory"/>
+</Annotations>
+<Annotations Target="SAP__self.ItensContratoType/RequestedQuantity">
+<Annotation Term="SAP__common.FieldControl" EnumMember="SAP__common.FieldControlType/Mandatory"/>
+<Annotation Term="SAP__measures.Unit" Path="RequestedQuantityUnit"/>
+</Annotations>
+<Annotations Target="SAP__self.ItensContratoType/RequestedQuantityUnit">
+<Annotation Term="SAP__common.IsUnit"/>
+<Annotation Term="SAP__common.FieldControl" EnumMember="SAP__common.FieldControlType/Mandatory"/>
+</Annotations>
+<Annotations Target="SAP__self.ItensContratoType/TransactionCurrency">
+<Annotation Term="SAP__common.IsCurrency"/>
+</Annotations>
+<Annotations Target="SAP__self.ItensContratoType/to_PricingElement">
+<Annotation Term="SAP__common.Composition"/>
+</Annotations>
+<Annotations Target="SAP__self.Container/ItensContrato">
+<Annotation Term="SAP__capabilities.NavigationRestrictions">
+<Record>
+<PropertyValue Property="RestrictedProperties">
+<Collection>
+<Record>
+<PropertyValue Property="NavigationProperty" NavigationPropertyPath="to_PricingElement"/>
+<PropertyValue Property="InsertRestrictions">
+<Record>
+<PropertyValue Property="Insertable" Bool="true"/>
+</Record>
+</PropertyValue>
+</Record>
+</Collection>
+</PropertyValue>
+</Record>
+</Annotation>
+<Annotation Term="SAP__capabilities.SearchRestrictions">
+<Record>
+<PropertyValue Property="Searchable" Bool="false"/>
+</Record>
+</Annotation>
+<Annotation Term="SAP__capabilities.FilterRestrictions">
+<Record>
+<PropertyValue Property="Filterable" Bool="true"/>
+<PropertyValue Property="FilterExpressionRestrictions">
+<Collection>
+<Record>
+<PropertyValue Property="Property" PropertyPath="Culture"/>
+<PropertyValue Property="AllowedExpressions" String="SearchExpression"/>
+</Record>
+</Collection>
+</PropertyValue>
+</Record>
+</Annotation>
+<Annotation Term="SAP__capabilities.SortRestrictions">
+<Record>
+<PropertyValue Property="NonSortableProperties">
+<Collection>
+<PropertyPath>Culture</PropertyPath>
+</Collection>
+</PropertyValue>
+</Record>
+</Annotation>
+<Annotation Term="SAP__capabilities.ReadRestrictions">
+<Record>
+<PropertyValue Property="Readable" Bool="false"/>
+</Record>
+</Annotation>
+<Annotation Term="SAP__capabilities.InsertRestrictions">
+<Record>
+<PropertyValue Property="Insertable" Bool="false"/>
+</Record>
+</Annotation>
+<Annotation Term="SAP__capabilities.DeleteRestrictions">
+<Record>
+<PropertyValue Property="Deletable" Bool="false"/>
+</Record>
+</Annotation>
+<Annotation Term="SAP__capabilities.UpdateRestrictions">
+<Record>
+<PropertyValue Property="Updatable" Bool="false"/>
+<PropertyValue Property="NonUpdatableNavigationProperties">
+<Collection>
+<PropertyPath>to_PricingElement</PropertyPath>
+<PropertyPath>_Contract</PropertyPath>
+</Collection>
+</PropertyValue>
+<PropertyValue Property="QueryOptions">
+<Record>
+<PropertyValue Property="SelectSupported" Bool="true"/>
+</Record>
+</PropertyValue>
+</Record>
+</Annotation>
+</Annotations>
+<Annotations Target="SAP__self.ItensContratoType">
+<Annotation Term="SAP__common.Label" String="API de contrato de vendas - Itens"/>
+</Annotations>
+<Annotations Target="SAP__self.ParceirosContratoType/SalesContract">
+<Annotation Term="SAP__core.Computed"/>
+<Annotation Term="SAP__common.IsUpperCase"/>
+<Annotation Term="SAP__common.Label" String="Documento SD"/>
+<Annotation Term="SAP__common.Heading" String="Documento"/>
+<Annotation Term="SAP__common.QuickInfo" String="Número do documento de vendas e distribuição"/>
+<Annotation Term="SAP__common.DocumentationRef" String="urn:sap-com:documentation:key?=type=DE&id=VBELN"/>
+</Annotations>
+<Annotations Target="SAP__self.ParceirosContratoType/PartnerFunction">
+<Annotation Term="SAP__common.FieldControl" EnumMember="SAP__common.FieldControlType/Mandatory"/>
+</Annotations>
+<Annotations Target="SAP__self.ParceirosContratoType">
+<Annotation Term="SAP__common.Label" String="API de contrato de vendas - Parceiros"/>
+</Annotations>
+<Annotations Target="SAP__self.Container/ParceirosContrato">
+<Annotation Term="SAP__capabilities.SearchRestrictions">
+<Record>
+<PropertyValue Property="Searchable" Bool="false"/>
+</Record>
+</Annotation>
+<Annotation Term="SAP__capabilities.ReadRestrictions">
+<Record>
+<PropertyValue Property="Readable" Bool="false"/>
+</Record>
+</Annotation>
+<Annotation Term="SAP__capabilities.InsertRestrictions">
+<Record>
+<PropertyValue Property="Insertable" Bool="false"/>
+</Record>
+</Annotation>
+<Annotation Term="SAP__capabilities.DeleteRestrictions">
+<Record>
+<PropertyValue Property="Deletable" Bool="false"/>
+</Record>
+</Annotation>
+<Annotation Term="SAP__capabilities.UpdateRestrictions">
+<Record>
+<PropertyValue Property="Updatable" Bool="false"/>
+<PropertyValue Property="NonUpdatableNavigationProperties">
+<Collection>
+<PropertyPath>_Contract</PropertyPath>
+</Collection>
+</PropertyValue>
+<PropertyValue Property="QueryOptions">
+<Record>
+<PropertyValue Property="SelectSupported" Bool="true"/>
+</Record>
+</PropertyValue>
+</Record>
+</Annotation>
+</Annotations>
+<Annotations Target="SAP__self.PrecosItemType/SalesContract">
+<Annotation Term="SAP__core.Computed"/>
+<Annotation Term="SAP__common.IsUpperCase"/>
+<Annotation Term="SAP__common.Label" String="Documento SD"/>
+<Annotation Term="SAP__common.Heading" String="Documento"/>
+<Annotation Term="SAP__common.QuickInfo" String="Número do documento de vendas e distribuição"/>
+<Annotation Term="SAP__common.DocumentationRef" String="urn:sap-com:documentation:key?=type=DE&id=VBELN"/>
+</Annotations>
+<Annotations Target="SAP__self.PrecosItemType/SalesContractItem">
+<Annotation Term="SAP__core.Computed"/>
+<Annotation Term="SAP__common.IsDigitSequence"/>
+</Annotations>
+<Annotations Target="SAP__self.PrecosItemType/ConditionUUID">
+<Annotation Term="SAP__core.Computed"/>
+<Annotation Term="SAP__common.Label" String="UUID"/>
+<Annotation Term="SAP__common.QuickInfo" String="16 Byte UUID in 16 Bytes (Raw Format)"/>
+</Annotations>
+<Annotations Target="SAP__self.PrecosItemType/ConditionType">
+<Annotation Term="SAP__common.FieldControl" EnumMember="SAP__common.FieldControlType/Mandatory"/>
+</Annotations>
+<Annotations Target="SAP__self.PrecosItemType">
+<Annotation Term="SAP__common.Label" String="API de contrato - Condições do item"/>
+</Annotations>
+<Annotations Target="SAP__self.Container/PrecosItem">
+<Annotation Term="SAP__capabilities.SearchRestrictions">
+<Record>
+<PropertyValue Property="Searchable" Bool="false"/>
+</Record>
+</Annotation>
+<Annotation Term="SAP__capabilities.ReadRestrictions">
+<Record>
+<PropertyValue Property="Readable" Bool="false"/>
+</Record>
+</Annotation>
+<Annotation Term="SAP__capabilities.InsertRestrictions">
+<Record>
+<PropertyValue Property="Insertable" Bool="false"/>
+</Record>
+</Annotation>
+<Annotation Term="SAP__capabilities.DeleteRestrictions">
+<Record>
+<PropertyValue Property="Deletable" Bool="false"/>
+</Record>
+</Annotation>
+<Annotation Term="SAP__capabilities.UpdateRestrictions">
+<Record>
+<PropertyValue Property="Updatable" Bool="false"/>
+<PropertyValue Property="NonUpdatableNavigationProperties">
+<Collection>
+<PropertyPath>_Contract</PropertyPath>
+<PropertyPath>_Item</PropertyPath>
+</Collection>
+</PropertyValue>
+<PropertyValue Property="QueryOptions">
+<Record>
+<PropertyValue Property="SelectSupported" Bool="true"/>
+</Record>
+</PropertyValue>
+</Record>
+</Annotation>
+</Annotations>
+<Annotations Target="SAP__self.ParcelasContratoType/SalesContract">
+<Annotation Term="SAP__core.Computed"/>
+<Annotation Term="SAP__common.IsUpperCase"/>
+<Annotation Term="SAP__common.Label" String="Documento SD"/>
+<Annotation Term="SAP__common.Heading" String="Documento"/>
+<Annotation Term="SAP__common.QuickInfo" String="Número do documento de vendas e distribuição"/>
+<Annotation Term="SAP__common.DocumentationRef" String="urn:sap-com:documentation:key?=type=DE&id=VBELN"/>
+</Annotations>
+<Annotations Target="SAP__self.ParcelasContratoType/Parcela">
+<Annotation Term="SAP__common.FieldControl" EnumMember="SAP__common.FieldControlType/Mandatory"/>
+<Annotation Term="SAP__common.Label" String="N° Parcela"/>
+</Annotations>
+<Annotations Target="SAP__self.ParcelasContratoType/Valor">
+<Annotation Term="SAP__measures.ISOCurrency" Path="TransactionCurrency"/>
+<Annotation Term="SAP__common.Label" String="Valor(8,2)"/>
+<Annotation Term="SAP__common.QuickInfo" String="Campo de valores - 8(15) caracteres com 2 casas decimais"/>
+<Annotation Term="SAP__common.DocumentationRef" String="urn:sap-com:documentation:key?=type=DE&id=WERTV8"/>
+</Annotations>
+<Annotations Target="SAP__self.ParcelasContratoType/FormPag">
+<Annotation Term="SAP__common.IsUpperCase"/>
+<Annotation Term="SAP__common.Label" String="FrmPgto"/>
+<Annotation Term="SAP__common.Heading" String="MP"/>
+<Annotation Term="SAP__common.QuickInfo" String="Forma de pagamento"/>
+<Annotation Term="SAP__common.DocumentationRef" String="urn:sap-com:documentation:key?=type=DE&id=SCHZW_BSEG"/>
+</Annotations>
+<Annotations Target="SAP__self.ParcelasContratoType/TransactionCurrency">
+<Annotation Term="SAP__common.IsCurrency"/>
+<Annotation Term="SAP__common.FieldControl" EnumMember="SAP__common.FieldControlType/Mandatory"/>
+</Annotations>
+<Annotations Target="SAP__self.ParcelasContratoType">
+<Annotation Term="SAP__common.Label" String="API de contrato - Parcelas de pagamento"/>
+</Annotations>
+<Annotations Target="SAP__self.Container/ParcelasContrato">
+<Annotation Term="SAP__capabilities.SearchRestrictions">
+<Record>
+<PropertyValue Property="Searchable" Bool="false"/>
+</Record>
+</Annotation>
+<Annotation Term="SAP__capabilities.ReadRestrictions">
+<Record>
+<PropertyValue Property="Readable" Bool="false"/>
+</Record>
+</Annotation>
+<Annotation Term="SAP__capabilities.InsertRestrictions">
+<Record>
+<PropertyValue Property="Insertable" Bool="false"/>
+</Record>
+</Annotation>
+<Annotation Term="SAP__capabilities.DeleteRestrictions">
+<Record>
+<PropertyValue Property="Deletable" Bool="false"/>
+</Record>
+</Annotation>
+<Annotation Term="SAP__capabilities.UpdateRestrictions">
+<Record>
+<PropertyValue Property="Updatable" Bool="false"/>
+<PropertyValue Property="NonUpdatableNavigationProperties">
+<Collection>
+<PropertyPath>_Contract</PropertyPath>
+</Collection>
+</PropertyValue>
+<PropertyValue Property="QueryOptions">
+<Record>
+<PropertyValue Property="SelectSupported" Bool="true"/>
+</Record>
+</PropertyValue>
+</Record>
+</Annotation>
+<Annotation Term="SAP__capabilities.FilterRestrictions">
+<Record>
+<PropertyValue Property="FilterExpressionRestrictions">
+<Collection>
+<Record>
+<PropertyValue Property="Property" PropertyPath="Valor"/>
+<PropertyValue Property="AllowedExpressions" String="MultiValue"/>
+</Record>
+</Collection>
+</PropertyValue>
+</Record>
+</Annotation>
+</Annotations>
+<Annotations Target="SAP__self.CriaContratoType/CodTaxa">
+<Annotation Term="SAP__common.Label" String="CodigoTaxa"/>
+</Annotations>
+<Annotations Target="SAP__self.ParcelasContratoType/Porcentagem">
+<Annotation Term="SAP__common.Label" String="Porcentagem"/>
+<Annotation Term="SAP__common.QuickInfo" String="Porcentagem do valor a Faturar"/>
+</Annotations>
+<Annotations Target="SAP__self.ParcelasContratoType/Data">
+<Annotation Term="SAP__common.Label" String="Dt.base prazo pgto."/>
+<Annotation Term="SAP__common.Heading" String="Data base"/>
+<Annotation Term="SAP__common.QuickInfo" String="Data base para cálculo do vencimento"/>
+<Annotation Term="SAP__common.DocumentationRef" String="urn:sap-com:documentation:key?=type=DE&id=DZFBDT"/>
+</Annotations>
+</Schema>
+</edmx:DataServices>
+</edmx:Edmx>
