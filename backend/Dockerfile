@@ -4,7 +4,7 @@
 #   worker: docker run IMG app.entrypoints.worker
 
 # ---- builder: resolve e instala deps + projeto no /app/.venv ---------------
-FROM python:3.12-slim-bookworm AS builder
+FROM python:3.14-slim-bookworm AS builder
 COPY --from=ghcr.io/astral-sh/uv:0.12.5 /uv /uvx /bin/
 
 ENV UV_COMPILE_BYTECODE=1 \
@@ -27,7 +27,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-editable
 
 # ---- runtime: python slim + .venv, usuario nao-root ------------------------
-FROM python:3.12-slim-bookworm AS runtime
+FROM python:3.14-slim-bookworm AS runtime
 
 RUN groupadd --system --gid 10001 appuser \
     && useradd --system --uid 10001 --gid appuser --no-create-home appuser
