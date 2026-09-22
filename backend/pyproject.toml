@@ -70,7 +70,12 @@ select = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**/*.py" = ["S101"]  # assert é esperado em testes
+"tests/**/*.py" = [
+    "S101",  # assert é esperado em testes
+    "S105",  # "password" em variavel de teste (fake)
+    "S106",  # "password" em argumento de teste (fake)
+    "S107",  # "password" em default de teste (fake)
+]
 
 # ---- Mypy ------------------------------------------------------------------
 
