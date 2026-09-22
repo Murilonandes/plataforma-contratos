@@ -1,0 +1,57 @@
+{
+  "SalesContractType": "ZCON",
+  "SalesOrganization": "BRF1",
+  "DistributionChannel": "RP",
+  "OrganizationDivision": "FE",
+  "SalesOffice": "ECWB",
+  "SalesGroup": "OUT",
+  "SDDocumentReason": "Z38",
+  "SoldToParty": "1003874",
+  "TransactionCurrency": "BRL",
+  "IncotermsClassification": "CIF",
+  "IncotermsLocation1": "Paranagua",
+  "CustomerPaymentTerms": "Z999",
+  "PurchaseOrderByCustomer": "ECWB285",
+  "CustomerPurchaseOrderDate": "2026-08-05",
+  "SalesContractValidityEndDate": "2027-08-05",
+  "NotaInternaCli": "TESTECLI",
+  "PedidoSysFertil": "PG285",
+  "CodTaxa": "HDGF1070",
+  "StatusBlock": "06",
+  "to_Item": [
+    {
+      "SalesContractItemText": "02 ESB GR - SAM (20,5-00-00)",
+      "Material": "20209",
+      "RequestedQuantity": 1,
+      "RequestedQuantityUnit": "TO",
+      "Plant": "PL03",
+      "IncotermsClassification": "CIF",
+      "IncotermsLocation1": "Paranagua",
+      "TransactionCurrency": "BRL",
+      "Culture": "005",
+      "ScheduleDate": "2026-08-30",
+      "ScheduleDate2": "2026-08-30",
+      "CustomerPaymentTerms": "Z999",
+      "to_PricingElement": [
+        { "ConditionType": "PR00", "ConditionRateValue": 1164.98 },
+        { "ConditionType": "ZFRE", "ConditionRateValue": 25.69 }
+      ]
+    }
+  ],
+  "to_Partner": [
+    { "PartnerFunction": "Y1", "Customer": "1002138", "Supplier": "", "Personnel": "", "ContactPerson": "" },
+    { "PartnerFunction": "Y2", "Customer": "1002179", "Supplier": "", "Personnel": "", "ContactPerson": "" }
+  ],
+  "to_FormPag": [
+    { "Parcela": 1, "TransactionCurrency": "BRL", "Porcentagem": 33.3334, "Valor": 7766.52, "Data": "2026-09-04", "FormPag": "K" },
+    { "Parcela": 2, "TransactionCurrency": "BRL", "Porcentagem": 33.3333, "Valor": 7766.52, "Data": "2026-10-04", "FormPag": "K" },
+    { "Parcela": 3, "TransactionCurrency": "BRL", "Porcentagem": 33.3333, "Valor": 7766.51, "Data": "2026-11-03", "FormPag": "K" }
+  ],
+  "to_PricingElement": [
+    { "ConditionType": "ZCM1", "ConditionRateValue": 1.5 },
+    { "ConditionType": "ZCM2", "ConditionRateValue": 2.32 }
+  ],
+  "to_Text": [
+    { "Language": "PT", "LongTextID": "TX01", "LongText": "teste_LongText" }
+  ]
+}
