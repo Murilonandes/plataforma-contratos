@@ -755,6 +755,29 @@ Todos verdes.
 
 - [ ] **Passo 4** — Reportar resumo e pendências ao usuário. **Só então iniciar Fase 1.**
 
+### Registro do fechamento (2026-09-22)
+
+**Validado:** checks locais backend/frontend verdes (63 testes backend, 1 frontend); CI verde no
+`05b3618` (run 35769913838) — backend, frontend, security (pip-audit, pnpm audit, gitleaks) e
+images (build + smoke das duas imagens + compose `db` healthy + Trivy CRITICAL).
+
+**Escrito mas NÃO validado localmente** (Docker ausente na máquina do dev; só no runner do CI):
+- 0.7 `docker build ./backend` + `docker run` + `curl /health/live` — coberto pelo smoke do CI
+- 0.9 `docker build ./frontend` + abrir a página — coberto pelo smoke do CI
+- 0.10 `docker compose ... up -d db` — coberto pelo CI; `api`/`worker`/`web` via compose **não** foram subidos em lugar nenhum
+- Validar os três localmente quando o Docker for reinstalado (antes da Fase 2 / testcontainers)
+
+**Desvios do plano (decididos com o dono do projeto):** React 19 (não 18); Node 22 LTS (Node 20
+EOL); nginx 1.30 (1.27 sem suporte); testes de API com `httpx.AsyncClient`+`ASGITransport`
+(evita `starlette.testclient`); import-linter in-process; gate de cobertura via
+`scripts/coverage_gate.py` (pula só com zero statements); actions fixadas por SHA.
+
+**Correções pós-CI:** `05b3618` — secrets condicional + arquivo > env + `hide_input_in_errors`
+(senha vazava em `str(ValidationError)`) + `captureWarnings` e bootstrap de logging no entrypoint.
+
+**Pendências abertas:** Dependabot `uv` falhando (log não lido — sem `gh` na máquina);
+`/code-review` (Passo 3) não rodado; `README.md` da raiz em UTF-16 vindo do commit `ea9bf46`.
+
 ---
 
 # FASE 1 — DOMÍNIO PURO
