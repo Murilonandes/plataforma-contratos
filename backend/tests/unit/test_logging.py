@@ -9,25 +9,12 @@ Verifica:
 from __future__ import annotations
 
 import json
-import logging as std_logging
+import warnings
 
 import pytest
 import structlog
 
 from app.observability.logging import configure_logging
-
-
-@pytest.fixture(autouse=True)
-def _reset_logging():
-    """Zera config do structlog e handlers stdlib entre testes."""
-    structlog.reset_defaults()
-    root = std_logging.getLogger()
-    prev_handlers = root.handlers[:]
-    prev_level = root.level
-    yield
-    structlog.reset_defaults()
-    root.handlers = prev_handlers
-    root.setLevel(prev_level)
 
 
 def _linha_json_do_log(capsys: pytest.CaptureFixture[str]) -> dict[str, object]:
@@ -66,3 +53,14 @@ def test_chaves_sensiveis_sao_redigidas(capsys: pytest.CaptureFixture[str], chav
     linha = _linha_json_do_log(capsys)
     assert linha[chave] == "***REDACTED***"
     assert "valor-secreto-42" not in json.dumps(linha)
+
+
+def test_warning_do_python_sai_como_json(capsys: pytest.CaptureFixture[str]) -> None:
+    configure_logging(level="INFO")
+    with warnings.catch_warnings():
+        warnings.simplefilter("always")
+        warnings.warn("aviso qualquer de biblioteca", UserWarning, stacklevel=1)
+    linha = _linha_json_do_log(capsys)
+    assert linha["logger"] == "py.warnings"
+    assert linha["level"] == "warning"
+    assert "aviso qualquer de biblioteca" in str(linha["event"])

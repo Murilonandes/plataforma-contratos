@@ -1,8 +1,9 @@
 """Logging estruturado (structlog -> JSON no stdout).
 
 Toda saida passa pelo stdlib ``logging`` para que logs de bibliotecas
-(uvicorn, sqlalchemy, httpx) saiam no mesmo formato JSON. Chaves sensiveis
-sao redigidas antes da serializacao.
+(uvicorn, sqlalchemy, httpx) e ``warnings.warn`` saiam no mesmo formato JSON.
+Chaves sensiveis sao redigidas antes da serializacao. Os entrypoints chamam
+``configure_logging`` antes de instanciar o Settings.
 """
 
 from __future__ import annotations
@@ -69,3 +70,7 @@ def configure_logging(level: str = "INFO") -> None:
     root = logging.getLogger()
     root.handlers = [handler]
     root.setLevel(nivel)
+
+    # warnings.warn (bibliotecas, pydantic-settings...) vira log do "py.warnings",
+    # em JSON, em vez de texto cru no stderr.
+    logging.captureWarnings(True)

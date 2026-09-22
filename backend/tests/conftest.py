@@ -7,10 +7,13 @@ e limpa qualquer ``SAP_*`` / ``APP_ENV`` / ``LOG_LEVEL`` herdado do shell.
 
 from __future__ import annotations
 
-from collections.abc import Callable
+import logging
+import warnings
+from collections.abc import Callable, Iterator
 from pathlib import Path
 
 import pytest
+import structlog
 
 _ENV_VARS_ISOLADAS = (
     "APP_ENV",
@@ -39,6 +42,42 @@ def isolated_settings_env(
         monkeypatch.delenv(var, raising=False)
 
     return secrets_dir
+
+
+@pytest.fixture(autouse=True)
+def reset_logging() -> Iterator[None]:
+    """Restaura structlog, TODOS os loggers stdlib e a captura de warnings.
+
+    Necessario porque ha codigo que mexe no logging global durante os testes
+    (ex.: ``importlinter.cli`` roda ``dictConfig`` com
+    ``disable_existing_loggers``, o que desligava o ``py.warnings`` para os
+    testes seguintes).
+    """
+    root = logging.getLogger()
+    loggers = [
+        root,
+        *(
+            lg
+            for lg in logging.Logger.manager.loggerDict.values()
+            if isinstance(lg, logging.Logger)
+        ),
+    ]
+    snapshot = [(lg, lg.disabled, lg.handlers[:], lg.level, lg.propagate) for lg in loggers]
+    prev_showwarning = warnings.showwarning
+    structlog.reset_defaults()
+    yield
+    logging.captureWarnings(False)
+    warnings.showwarning = prev_showwarning
+    structlog.reset_defaults()
+    conhecidos = {id(lg) for lg, *_ in snapshot}
+    for lg in logging.Logger.manager.loggerDict.values():
+        # loggers criados durante o teste: voltam ao estado neutro
+        if isinstance(lg, logging.Logger) and id(lg) not in conhecidos:
+            lg.disabled, lg.handlers, lg.propagate = False, [], True
+            lg.setLevel(logging.NOTSET)
+    for lg, disabled, handlers, level, propagate in snapshot:
+        lg.disabled, lg.handlers, lg.propagate = disabled, handlers, propagate
+        lg.setLevel(level)
 
 
 ConfiguraSap = Callable[..., None]

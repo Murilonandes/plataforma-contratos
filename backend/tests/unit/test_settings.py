@@ -7,6 +7,8 @@ de dev.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 from pydantic import ValidationError
 
@@ -167,3 +169,79 @@ def test_prd_com_credenciais_de_arquivo_carrega(sap_env: ConfiguraSap) -> None:
     assert settings.app_env == "prd"
     assert settings.sap_user.get_secret_value() == "prd-user"
     assert settings.sap_pass.get_secret_value() == "prd-pass"
+
+
+# ---- secrets_dir ausente (container sem /run/secrets montado) --------------
+
+
+@pytest.fixture
+def sem_secrets_dir(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
+    ausente = tmp_path / "nao-montado"
+    monkeypatch.setitem(Settings.model_config, "secrets_dir", str(ausente))
+    return ausente
+
+
+@pytest.mark.usefixtures("sem_secrets_dir")
+def test_dev_sem_secrets_dir_carrega_sem_warning(sap_env: ConfiguraSap) -> None:
+    # filterwarnings=error: qualquer UserWarning do pydantic-settings falharia aqui.
+    sap_env(creds_via="env", sap_user="u-env", sap_pass="p-env")
+    settings = Settings()
+    assert settings.sap_pass.get_secret_value() == "p-env"
+
+
+@pytest.mark.parametrize("app_env", ["qas", "prd"])
+def test_fora_de_dev_sem_secrets_dir_e_com_env_falha(
+    sap_env: ConfiguraSap, sem_secrets_dir: Path, app_env: str
+) -> None:
+    kwargs: dict[str, str] = {"app_env": app_env, "creds_via": "env"}
+    if app_env == "prd":
+        kwargs |= {"base_url": "https://s4-prd.acme/path/", "prd_hosts": "s4-prd.acme"}
+    sap_env(**kwargs)
+    with pytest.raises(ValidationError) as exc:
+        Settings()
+    msg = str(exc.value)
+    assert f"app_env='{app_env}'" in msg
+    assert str(sem_secrets_dir) in msg
+
+
+@pytest.mark.parametrize("app_env", ["dev", "prd"])
+def test_arquivo_de_secret_tem_precedencia_sobre_env(
+    sap_env: ConfiguraSap, monkeypatch: pytest.MonkeyPatch, app_env: str
+) -> None:
+    kwargs: dict[str, str] = {"app_env": app_env, "creds_via": "file"}
+    if app_env == "prd":
+        kwargs |= {"base_url": "https://s4-prd.acme/path/", "prd_hosts": "s4-prd.acme"}
+    sap_env(**kwargs, sap_user="u-arquivo", sap_pass="p-arquivo")
+    monkeypatch.setenv("SAP_USER", "u-env")
+    monkeypatch.setenv("SAP_PASS", "p-env")
+    settings = Settings()
+    assert settings.sap_user.get_secret_value() == "u-arquivo"
+    assert settings.sap_pass.get_secret_value() == "p-arquivo"
+
+
+# ---- Erro de validacao nunca carrega o input (senha) -----------------------
+
+_SENHA_ERRO = "senha-que-nao-pode-vazar-7c3e"
+
+
+@pytest.mark.parametrize(
+    "cenario",
+    [
+        # prd com credencial so no env -> falha do validator de credenciais
+        {"app_env": "prd", "base_url": "https://s4-prd.acme/x/", "prd_hosts": "s4-prd.acme"},
+        # dev apontando pra prd -> falha do guard de host
+        {"app_env": "dev", "base_url": "https://s4-prd.acme/x/", "prd_hosts": "s4-prd.acme"},
+        # http -> falha de campo
+        {"app_env": "dev", "base_url": "http://s4-dev.acme/x/"},
+    ],
+    ids=["prd_creds_env", "dev_host_prd", "http"],
+)
+def test_validation_error_nao_expoe_senha(sap_env: ConfiguraSap, cenario: dict[str, str]) -> None:
+    sap_env(**cenario, creds_via="env", sap_pass=_SENHA_ERRO)
+    with pytest.raises(ValidationError) as exc:
+        Settings()
+    assert _SENHA_ERRO not in str(exc.value)
+    # errors() sempre inclui o input (design do pydantic); quem logar erros
+    # estruturados usa include_input=False, como o entrypoint da api.
+    assert _SENHA_ERRO not in repr(exc.value.errors(include_input=False))
+    assert _SENHA_ERRO[-12:] not in str(exc.value)  # nem o pedaco truncado

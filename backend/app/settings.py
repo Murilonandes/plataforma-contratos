@@ -10,10 +10,10 @@ Contrato (ver ``docs/plans/fase-0-1.md`` Tarefa 0.3):
     * ``APP_ENV=prd`` exige host ``in SAP_PRD_HOSTS``
     * ``APP_ENV != 'prd'`` exige host ``not in SAP_PRD_HOSTS``
 - Credenciais (``SAP_USER`` / ``SAP_PASS``) sao ``SecretStr`` e sao lidas de
-  ``secrets_dir`` (default ``/run/secrets``, uma chave por arquivo). Fallback
-  de env so em ``dev`` — em ``qas``/``prd`` os arquivos precisam existir ou o
-  app nao sobe. ``str()`` / ``repr()`` / ``model_dump()`` do Settings nunca
-  expoem a senha em texto.
+  ``secrets_dir`` (default ``/run/secrets``, uma chave por arquivo), que tem
+  precedencia sobre env. Fallback de env so em ``dev`` — em ``qas``/``prd`` os
+  arquivos precisam existir ou o app nao sobe. ``str()`` / ``repr()`` /
+  ``model_dump()`` do Settings nunca expoem a senha em texto.
 """
 
 from __future__ import annotations
@@ -22,9 +22,23 @@ from pathlib import Path
 from typing import Annotated, Literal
 
 from pydantic import HttpUrl, SecretStr, field_validator, model_validator
-from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
+from pydantic_settings import (
+    BaseSettings,
+    NoDecode,
+    PydanticBaseSettingsSource,
+    SettingsConfigDict,
+)
 
 _SECRETS_DIR_PADRAO = "/run/secrets"
+
+
+def _secrets_dir_existe(fonte: PydanticBaseSettingsSource) -> bool:
+    """True se algum diretorio configurado na fonte de secrets existe."""
+    configurado = getattr(fonte, "secrets_dir", None)
+    if configurado is None:
+        return False
+    dirs = [configurado] if isinstance(configurado, (str, Path)) else list(configurado)
+    return any(Path(d).is_dir() for d in dirs)
 
 
 class Settings(BaseSettings):
@@ -35,6 +49,9 @@ class Settings(BaseSettings):
         case_sensitive=False,
         secrets_dir=_SECRETS_DIR_PADRAO,
         extra="ignore",
+        # ValidationError nao carrega input_value: erros de nivel de modelo
+        # levariam o dict inteiro do env (inclusive SAP_PASS) para o log.
+        hide_input_in_errors=True,
     )
 
     app_env: Literal["dev", "qas", "prd"]
@@ -46,6 +63,28 @@ class Settings(BaseSettings):
     sap_timeout_connect_s: float = 5.0
     sap_timeout_read_s: float = 90.0
     log_level: str = "INFO"
+
+    # -- Fontes ----------------------------------------------------------------
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        """Arquivo de secret vence env; a fonte so entra se o diretorio existir.
+
+        Avaliado a cada instanciacao (nao no import). Sem o diretorio, a fonte e
+        omitida para o pydantic-settings nao emitir ``UserWarning`` em texto puro
+        (quebraria o contrato de log 100% JSON). O fail-closed de qas/prd continua
+        no validator ``_credenciais_fora_de_dev_devem_vir_de_arquivo``.
+        """
+        if _secrets_dir_existe(file_secret_settings):
+            return init_settings, file_secret_settings, env_settings, dotenv_settings
+        return init_settings, env_settings, dotenv_settings
 
     # -- Validators ----------------------------------------------------------
 
