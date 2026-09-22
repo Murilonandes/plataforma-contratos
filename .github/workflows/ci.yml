@@ -1,0 +1,195 @@
+name: CI
+
+on:
+  push:
+    branches: [develop, main]
+  pull_request:
+    branches: [develop, main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# Actions de terceiros fixadas por SHA (tag no comentario); o Dependabot atualiza.
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          version: "0.12.5"
+          python-version: "3.12"
+          working-directory: backend
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+
+      - run: uv sync --locked
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run mypy app
+      - run: uv run lint-imports
+      - name: pytest (com cobertura)
+        run: uv run pytest --cov=app.domain --cov=app.application --cov-report=term-missing --cov-report=xml
+      - name: gate de cobertura (domain + application >= 90%)
+        run: uv run python scripts/coverage_gate.py
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          package_json_file: frontend/package.json
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: frontend/.nvmrc
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm format:check
+      - run: pnpm test
+      - run: pnpm build
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # gitleaks varre o historico inteiro
+
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          version: "0.12.5"
+          python-version: "3.12"
+          working-directory: backend
+
+      - name: pip-audit (deps de producao do backend)
+        working-directory: backend
+        run: |
+          uv export --locked --no-dev --no-emit-project --format requirements-txt > "$RUNNER_TEMP/req.txt"
+          uvx pip-audit==2.10.1 -r "$RUNNER_TEMP/req.txt" --require-hashes --disable-pip
+
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          package_json_file: frontend/package.json
+
+      - name: pnpm audit (deps de producao do frontend)
+        working-directory: frontend
+        run: pnpm audit --prod
+
+      - name: gitleaks
+        uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_ENABLE_COMMENTS: "false"
+
+  images:
+    # Primeira validacao real dos Dockerfiles e do compose (sem Docker na maquina do dev).
+    runs-on: ubuntu-latest
+    env:
+      BACKEND_IMG: plataforma-contratos-backend:ci
+      WEB_IMG: plataforma-contratos-web:ci
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: build backend
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: backend
+          load: true
+          push: false
+          tags: ${{ env.BACKEND_IMG }}
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,mode=max,scope=backend
+
+      - name: build frontend
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: frontend
+          load: true
+          push: false
+          tags: ${{ env.WEB_IMG }}
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,mode=max,scope=frontend
+
+      - name: smoke backend (api, nao-root, fail-closed, worker)
+        run: |
+          set -euo pipefail
+          docker run -d --name api -p 8000:8000 \
+            -e APP_ENV=dev \
+            -e SAP_BASE_URL=https://s4-dev.example/x/ \
+            -e SAP_CLIENT=300 \
+            -e SAP_PRD_HOSTS=s4-prd.example \
+            -e SAP_USER=ci -e SAP_PASS=ci \
+            "$BACKEND_IMG"
+          for i in $(seq 1 30); do
+            curl -fsS http://127.0.0.1:8000/health/live && break || sleep 1
+          done
+          test "$(curl -fsS http://127.0.0.1:8000/health/live)" = '{"status":"ok"}'
+          test "$(curl -fsS -o /dev/null -w '%{http_code}' http://127.0.0.1:8000/health/ready)" = "200"
+          curl -fsS -D - -o /dev/null -H 'X-Request-ID: ci-123' http://127.0.0.1:8000/health/live | grep -i '^x-request-id: ci-123'
+          test "$(docker exec api id -u)" != "0"
+          # o mesmo comando do HEALTHCHECK da imagem
+          docker exec api python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health/live', timeout=2).status == 200 else 1)"
+          docker logs api > "$RUNNER_TEMP/api.log" 2>&1
+          python3 -c "import json,sys; [json.loads(l) for l in open(sys.argv[1]) if l.strip()]" "$RUNNER_TEMP/api.log"
+          docker rm -f api
+          # fail-closed: sem SAP_* a api nao pode subir
+          if docker run --rm "$BACKEND_IMG"; then echo "api subiu sem config!"; exit 1; fi
+          # worker stub sai com 0
+          docker run --rm "$BACKEND_IMG" app.entrypoints.worker
+
+      - name: smoke frontend (nginx, SPA, headers)
+        run: |
+          set -euo pipefail
+          docker run -d --name web -p 5173:80 "$WEB_IMG"
+          for i in $(seq 1 20); do
+            curl -fsS http://127.0.0.1:5173/healthz && break || sleep 1
+          done
+          curl -fsS http://127.0.0.1:5173/ | grep -q '<title>Plataforma de Contratos</title>'
+          curl -fsS http://127.0.0.1:5173/rota/qualquer | grep -q 'id="root"'
+          curl -fsS -D - -o /dev/null http://127.0.0.1:5173/ | grep -i '^x-content-type-options: nosniff'
+          docker rm -f web
+
+      - name: compose (config + db healthy)
+        run: |
+          set -euo pipefail
+          docker compose -f infra/compose.dev.yml --env-file infra/.env.example config -q
+          docker compose -f infra/compose.dev.yml --env-file infra/.env.example up -d --wait db
+          docker compose -f infra/compose.dev.yml --env-file infra/.env.example logs db | grep -q "ready to accept connections"
+          docker compose -f infra/compose.dev.yml --env-file infra/.env.example down -v
+
+      - name: trivy backend (bloqueia so CRITICAL com fix)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ env.BACKEND_IMG }}
+          severity: CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+
+      - name: trivy frontend (bloqueia so CRITICAL com fix)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ env.WEB_IMG }}
+          severity: CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
