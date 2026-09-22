@@ -202,7 +202,7 @@ def test_prd_rejeita_credencial_por_init_kwarg(sap_env: ConfiguraSap, campo: str
     kwargs = {campo: "via-kwarg"}
     with pytest.raises(ValidationError) as exc:
         Settings(**kwargs)  # type: ignore[arg-type]
-    assert campo.upper() in str(exc.value)
+    assert f"{campo.upper()} nao pode vir de argumento" in str(exc.value)
 
 
 def test_prd_rejeita_secrets_dir_diferente_do_configurado(
@@ -215,7 +215,8 @@ def test_prd_rejeita_secrets_dir_diferente_do_configurado(
     monkeypatch.setenv("SAP_PASS", "p-env")
     with pytest.raises(ValidationError) as exc:
         Settings(_secrets_dir=str(outro))  # type: ignore[call-arg]
-    assert "secrets_dir" in str(exc.value)
+    # nao usar so "secrets_dir": o texto aparece no path temporario do pytest
+    assert "secrets_dir efetivo difere do configurado" in str(exc.value)
 
 
 def test_dev_aceita_init_kwargs(sap_env: ConfiguraSap) -> None:

@@ -144,17 +144,28 @@ jobs:
           for i in $(seq 1 30); do
             curl -fsS http://127.0.0.1:8000/health/live && break || sleep 1
           done
+          # Sem grep -q/head no fim de pipe (SIGPIPE com pipefail): captura em
+          # variavel e checa com here-string / [[ ]].
+          falha() { echo "FALHOU: $*"; exit 1; }
           test "$(curl -fsS http://127.0.0.1:8000/health/live)" = '{"status":"ok"}'
           test "$(curl -fsS -o /dev/null -w '%{http_code}' http://127.0.0.1:8000/health/ready)" = "200"
-          curl -fsS -D - -o /dev/null -H 'X-Request-ID: ci-123' http://127.0.0.1:8000/health/live | grep -i '^x-request-id: ci-123'
+          hdr=$(curl -fsS -D - -o /dev/null -H 'X-Request-ID: ci-123' http://127.0.0.1:8000/health/live | tr -d '\r')
+          grep -qi '^x-request-id: ci-123$' <<<"$hdr" || falha "X-Request-ID valido nao foi ecoado"
           # X-Request-ID fora de ^[A-Za-z0-9._-]{1,128}$ e trocado por um uuid novo
-          rid=$(curl -fsS -D - -o /dev/null -H 'X-Request-ID: tem/barra' http://127.0.0.1:8000/health/live | tr -d '\r' | awk -F': ' 'tolower($1)=="x-request-id"{print $2}')
-          test -n "$rid" && test "$rid" != "tem/barra"
+          hdr=$(curl -fsS -D - -o /dev/null -H 'X-Request-ID: tem/barra' http://127.0.0.1:8000/health/live | tr -d '\r')
+          rid=$(awk -F': ' 'tolower($1)=="x-request-id"{print $2}' <<<"$hdr")
+          if [ -z "$rid" ] || [ "$rid" = "tem/barra" ]; then falha "X-Request-ID invalido nao substituido: '$rid'"; fi
+          # access log proprio: sem query string, sem linha do uvicorn.access
+          curl -fsS -o /dev/null 'http://127.0.0.1:8000/health/live?access_token=CI_QUERY_LEAK'
           test "$(docker exec api id -u)" != "0"
           # imagem compartilhada api/worker nao pode trazer HEALTHCHECK embutido
           test "$(docker inspect --format '{{json .Config.Healthcheck}}' "$BACKEND_IMG")" = "null"
           docker logs api > "$RUNNER_TEMP/api.log" 2>&1
           python3 -c "import json,sys; [json.loads(l) for l in open(sys.argv[1]) if l.strip()]" "$RUNNER_TEMP/api.log"
+          logs=$(cat "$RUNNER_TEMP/api.log")
+          [[ "$logs" == *'"event": "http_request"'* ]] || falha "access log http_request ausente"
+          [[ "$logs" != *uvicorn.access* ]] || falha "access log do uvicorn deveria estar desligado"
+          [[ "$logs" != *CI_QUERY_LEAK* ]] || falha "query string vazou no log"
           docker rm -f api
           # fail-closed: sem SAP_* a api nao pode subir
           if docker run --rm "$BACKEND_IMG"; then echo "api subiu sem config!"; exit 1; fi
@@ -168,19 +179,24 @@ jobs:
           for i in $(seq 1 20); do
             curl -fsS http://127.0.0.1:5173/healthz && break || sleep 1
           done
-          curl -fsS http://127.0.0.1:5173/ | grep -q '<title>Plataforma de Contratos</title>'
-          curl -fsS http://127.0.0.1:5173/rota/qualquer | grep -q 'id="root"'
-          curl -fsS -D - -o /dev/null http://127.0.0.1:5173/ | grep -i '^x-content-type-options: nosniff'
+          falha() { echo "FALHOU: $*"; exit 1; }
+          html=$(curl -fsS http://127.0.0.1:5173/)
+          grep -q '<title>Plataforma de Contratos</title>' <<<"$html" || falha "titulo ausente"
+          spa=$(curl -fsS http://127.0.0.1:5173/rota/qualquer)
+          grep -q 'id="root"' <<<"$spa" || falha "fallback SPA nao serviu o index"
+          hdr=$(curl -fsS -D - -o /dev/null http://127.0.0.1:5173/ | tr -d '\r')
+          grep -qi '^x-content-type-options: nosniff$' <<<"$hdr" || falha "nosniff ausente em /"
           # redirect de diretorio relativo (absolute_redirect off): sem http:// absoluto
-          curl -sS -D - -o /dev/null http://127.0.0.1:5173/assets | tr -d '\r' | grep -i '^location: /assets/$'
+          hdr=$(curl -sS -D - -o /dev/null http://127.0.0.1:5173/assets | tr -d '\r')
+          grep -qi '^location: /assets/$' <<<"$hdr" || falha "redirect de /assets nao e relativo"
           # /assets/* com cache imutavel E os headers de seguranca
-          asset=$(curl -fsS http://127.0.0.1:5173/ | grep -o '/assets/[^"]*\.js' | head -n 1)
-          test -n "$asset"
+          [[ "$html" =~ (/assets/[^\"]*\.js) ]] || falha "nenhum /assets/*.js no index"
+          asset="${BASH_REMATCH[1]}"
           h=$(curl -fsS -D - -o /dev/null "http://127.0.0.1:5173$asset" | tr -d '\r')
-          echo "$h" | grep -i '^cache-control: public, max-age=31536000, immutable'
-          echo "$h" | grep -i '^x-content-type-options: nosniff'
-          echo "$h" | grep -i '^x-frame-options: DENY'
-          echo "$h" | grep -i '^referrer-policy: strict-origin-when-cross-origin'
+          grep -qi '^cache-control: public, max-age=31536000, immutable$' <<<"$h" || falha "cache imutavel ausente"
+          grep -qi '^x-content-type-options: nosniff$' <<<"$h" || falha "nosniff ausente em /assets"
+          grep -qi '^x-frame-options: DENY$' <<<"$h" || falha "X-Frame-Options ausente em /assets"
+          grep -qi '^referrer-policy: strict-origin-when-cross-origin$' <<<"$h" || falha "Referrer-Policy ausente em /assets"
           docker rm -f web
 
       - name: compose (config + db, api, web healthy + worker)
@@ -196,7 +212,10 @@ jobs:
           docker tag "$WEB_IMG" plataforma-contratos-web:dev
           dc config -q
           dc up -d --no-build --wait db api web
-          dc logs db | grep -q "ready to accept connections"
+          logs_db=$(dc logs db)
+          if [ "$(grep -c "ready to accept connections" <<<"$logs_db")" -lt 1 ]; then
+            echo "FALHOU: postgres nao ficou pronto"; exit 1
+          fi
           curl -fsS http://127.0.0.1:8000/health/live
           curl -fsS http://127.0.0.1:5173/healthz
           dc run --rm --no-deps worker

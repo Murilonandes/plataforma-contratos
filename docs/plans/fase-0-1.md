@@ -796,6 +796,18 @@ da Fase 0 (0 CRITICAL, 0 HIGH, 4 MEDIUM, 11 LOW, 6 INFO). Corrigidos antes da Fa
   `secrets/`) antes de qualquer token de build.
 - **Nota do 20** — na Fase 2 a credencial SAP vai **só para o worker**; a API não recebe
   `SAP_USER`/`SAP_PASS` (compose e stack).
+- **Stack Swarm com healthcheck** — a imagem do backend não traz `HEALTHCHECK` (é compartilhada
+  api/worker); o stack de PRD declara o healthcheck da `api` (mesmo comando do compose) e nenhum
+  healthcheck HTTP no `worker`.
+
+**Segunda revisão (2026-09-22)**, só nos arquivos alterados (1 HIGH, 4 MEDIUM, 7 LOW, 3 INFO).
+Corrigidos: log (`9e26141` — bytes, render seguro, regex/chaves, unraisablehook, access log
+próprio), guard (`2b26803` — só hostname DNS ASCII nos dois lados) e testes/CI (mutantes
+sobreviventes, testes vazios, `pipefail`). Sem terceira revisão completa, por decisão do dono.
+
+**Levado para a Fase 2:**
+- O **worker passa a carregar o `Settings`** no startup: o guard DEV×PRD e as regras de
+  credencial (arquivo de secret em qas/prd) valem para ele também. Hoje o stub não instancia.
 
 ---
 
@@ -804,6 +816,11 @@ da Fase 0 (0 CRITICAL, 0 HIGH, 4 MEDIUM, 11 LOW, 6 INFO). Corrigidos antes da Fa
 **Regra geral:** todos os arquivos ficam em `backend/app/domain/`. Nenhum import de `fastapi`, `sqlalchemy`, `httpx`, `starlette`, `pydantic-settings` — o `import-linter` já pega. Testes em `backend/tests/unit/domain/`.
 
 Todas as validações produzem mensagens de erro em **português**, com o campo entre aspas simples: ex.: `"campo 'SalesContractItemText' excede 40 caracteres"`.
+
+**Antes de fechar a Fase 1 (decisão do dono do projeto):** rodar **teste de mutação** no domínio,
+no mínimo em `money.py` e `installments.py` (quantização, maior resto, desempate por índice,
+validações de peso/total/datas). Todo mutante sobrevivente vira teste novo ou justificativa escrita
+(defesa em profundidade), como foi feito na Fase 0.
 
 ## Tarefa 1.1 — `money.py`
 
