@@ -1,7 +1,9 @@
-"""Hardening do Settings apos a revisao de seguranca da Fase 0.
+"""Hardening do Settings apos as revisoes de seguranca da Fase 0.
 
-- Achado 1: SAP_PRD_HOSTS e host da SAP_BASE_URL normalizados pela MESMA funcao
-  (lowercase, IDNA/punycode, sem ponto final); entrada invalida derruba o boot.
+- Guard: SAP_PRD_HOSTS e o host da SAP_BASE_URL so aceitam hostname DNS ASCII
+  (letras, digitos, hifen e pontos; rotulos de 1 a 63; ao menos um ponto).
+  IP literal (v4/v6, mapeado, zone id), nao-ASCII e rotulos xn-- sao
+  proibidos. Entrada rejeitada aparece truncada em 64 caracteres.
 - Achado 4: conteudo de secret com strip; vazio em qas/prd derruba o boot.
 - Achado 5: em qas/prd a credencial vem da fonte de arquivo efetiva (sem init
   kwargs, sem _secrets_dir diferente do configurado).
@@ -15,88 +17,127 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from app.settings import Settings, normalizar_host
+from app.settings import Settings, validar_hostname
 from tests.conftest import ConfiguraSap
 
 _PRD = {"app_env": "prd", "base_url": "https://s4-prd.acme/x/", "prd_hosts": "s4-prd.acme"}
 
+# Tudo o que nao e hostname DNS ASCII. Vale para os dois lados do guard.
+_NAO_HOSTNAME = [
+    "",
+    "localhost",  # sem ponto
+    "s4-prd.acme.",  # ponto final (rotulo vazio)
+    "host..x",
+    "-a.b",
+    "a-.b",
+    ("a" * 64) + ".com",  # rotulo > 63
+    ("a." * 127) + "com",  # > 253
+    "host/",
+    "https//host",
+    '["host.acme"]',
+    "host.acme;outro",
+    "ho st.acme",
+    "s4_prd.acme",
+    "10.0.0.5",
+    "10.0.5",
+    "010.0.0.5",
+    "0x0a.0.0.5",
+    "167772165",
+    "fd00::5",
+    "[fd00::5]",
+    "::ffff:10.0.0.5",
+    "::1:443",
+    "fe80::1%eth0",
+    "s4-prd-acmé.com",  # nao-ASCII
+    "straße.de",
+    "s4\uff0eacme\uff0ecom",  # ponto fullwidth
+    "xn--s4-prd-acm-k7a.com",  # IDN em punycode
+    "s4.xn--p1ai",
+]
 
-# ---- normalizar_host ---------------------------------------------------------
+
+# ---- validar_hostname --------------------------------------------------------
 
 
 @pytest.mark.parametrize(
     ("entrada", "esperado"),
     [
         ("S4-PRD.Acme.COM.br", "s4-prd.acme.com.br"),
-        ("s4-prd.acme.com.br.", "s4-prd.acme.com.br"),
-        ("s4-prd-acmé.com", "xn--s4-prd-acm-k7a.com"),
-        ("s4-prd\uff0eacme\uff0ecom", "s4-prd.acme.com"),  # ponto fullwidth
-        ("10.0.0.5", "10.0.0.5"),
-        ("FD00:0:0::5", "fd00::5"),
+        ("s4-dev.brfertil.com.br", "s4-dev.brfertil.com.br"),
+        ("a-1.b2.co", "a-1.b2.co"),
+        ("host.123abc", "host.123abc"),  # ultimo rotulo com letra e ok
     ],
 )
-def test_normalizar_host_valido(entrada: str, esperado: str) -> None:
-    assert normalizar_host(entrada) == esperado
+def test_validar_hostname_aceita_dns_ascii(entrada: str, esperado: str) -> None:
+    assert validar_hostname(entrada) == esperado
 
 
-@pytest.mark.parametrize(
-    "entrada",
-    ["", "host/", "https//host", '["host"]', "host;outro", "ho st", "[fd00::5]", "host..", "-a.b"],
-)
-def test_normalizar_host_invalido(entrada: str) -> None:
-    with pytest.raises(ValueError, match="hostname"):
-        normalizar_host(entrada)
+@pytest.mark.parametrize("entrada", _NAO_HOSTNAME)
+def test_validar_hostname_rejeita(entrada: str) -> None:
+    with pytest.raises(ValueError):  # noqa: PT011 — o motivo varia por caso
+        validar_hostname(entrada)
 
 
-# ---- SAP_PRD_HOSTS: formatos reproduzidos pelo revisor -----------------------
+# ---- SAP_PRD_HOSTS -----------------------------------------------------------
 
 
-@pytest.mark.parametrize(
-    "prd_hosts",
-    [
-        "s4-prd.acme/",
-        "https//s4-prd.acme",
-        '["s4-prd.acme"]',
-        "s4-prd.acme;outro",
-        " , ,s4-dev.acme",  # entrada vazia no meio
-        "s4-prd .acme",
-    ],
-)
-def test_prd_hosts_malformado_derruba_o_boot(sap_env: ConfiguraSap, prd_hosts: str) -> None:
+@pytest.mark.parametrize("prd_hosts", [h for h in _NAO_HOSTNAME if h])
+def test_prd_hosts_invalido_derruba_o_boot(sap_env: ConfiguraSap, prd_hosts: str) -> None:
     sap_env(prd_hosts=prd_hosts)
     with pytest.raises(ValidationError) as exc:
         Settings()
-    assert "SAP_PRD_HOSTS" in str(exc.value)
+    assert "SAP_PRD_HOSTS: entrada" in str(exc.value)
+
+
+def test_prd_hosts_entrada_rejeitada_aparece_truncada_em_64(sap_env: ConfiguraSap) -> None:
+    entrada = ("a" * 63) + ";" + ("Z" * 200)
+    sap_env(prd_hosts=entrada)
+    with pytest.raises(ValidationError) as exc:
+        Settings()
+    msg = str(exc.value)
+    assert f"'{entrada[:64]}...'" in msg
+    assert "Z" not in msg
+
+
+def test_prd_hosts_guarda_em_lowercase(sap_env: ConfiguraSap) -> None:
+    sap_env(prd_hosts="S4-PRD.ACME, s4-DR.acme")
+    assert Settings().sap_prd_hosts == ("s4-prd.acme", "s4-dr.acme")
+
+
+# ---- host da SAP_BASE_URL ----------------------------------------------------
 
 
 @pytest.mark.parametrize(
-    ("base_url", "prd_hosts"),
+    "base_url",
     [
-        ("https://s4-prd.acme/x/", "s4-prd.acme."),  # ponto final na lista
-        ("https://s4-prd.acme./x/", "s4-prd.acme"),  # ponto final na URL
-        ("https://s4-prd-acmé.com/x/", "s4-prd-acmé.com"),  # IDN nos dois lados
-        ("https://xn--s4-prd-acm-k7a.com/x/", "s4-prd-acmé.com"),  # punycode x unicode
-        ("https://10.0.0.5/x/", "10.0.0.5"),  # IPv4 literal
-        ("https://[fd00::5]/x/", "fd00:0::5"),  # IPv6 literal
+        "https://10.0.0.5/x/",
+        "https://[::ffff:10.0.0.5]/x/",
+        "https://[::ffff:a00:5]/x/",
+        "https://[fd00::5]/x/",
+        "https://0x0a.0.0.5/x/",  # o pydantic canonicaliza para 10.0.0.5
+        "https://s4-prd-acmé.com/x/",  # vira xn-- no pydantic
+        "https://xn--s4-prd-acm-k7a.com/x/",
+        "https://straße.de/x/",
+        "https://s4-prd.acme./x/",
+        "https://localhost/x/",
     ],
 )
-def test_guard_bate_apos_normalizacao_e_bloqueia_dev(
-    sap_env: ConfiguraSap, base_url: str, prd_hosts: str
+@pytest.mark.parametrize("app_env", ["dev", "prd"])
+def test_base_url_com_host_nao_dns_ascii_derruba_o_boot(
+    sap_env: ConfiguraSap, base_url: str, app_env: str
 ) -> None:
-    sap_env(app_env="dev", base_url=base_url, prd_hosts=prd_hosts)
+    creds = "file" if app_env == "prd" else "env"
+    sap_env(app_env=app_env, base_url=base_url, prd_hosts="s4-prd.acme", creds_via=creds)
+    with pytest.raises(ValidationError) as exc:
+        Settings()
+    assert "SAP_BASE_URL: host precisa ser hostname DNS ASCII" in str(exc.value)
+
+
+def test_guard_case_insensitive_bloqueia_dev(sap_env: ConfiguraSap) -> None:
+    sap_env(app_env="dev", base_url="https://S4-PRD.ACME/x/", prd_hosts="s4-prd.ACME")
     with pytest.raises(ValidationError) as exc:
         Settings()
     assert "nao pode apontar para host de producao" in str(exc.value)
-
-
-def test_prd_hosts_guarda_forma_normalizada(sap_env: ConfiguraSap) -> None:
-    sap_env(prd_hosts="S4-PRD.ACME., s4-prd-acmé.com, 10.0.0.5, fd00:0::5")
-    assert Settings().sap_prd_hosts == (
-        "s4-prd.acme",
-        "xn--s4-prd-acm-k7a.com",
-        "10.0.0.5",
-        "fd00::5",
-    )
 
 
 # ---- Achado 6: userinfo na URL ----------------------------------------------

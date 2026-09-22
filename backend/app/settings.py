@@ -4,11 +4,14 @@ Contrato (ver ``docs/plans/fase-0-1.md`` Tarefa 0.3 e a revisao de seguranca):
 
 - ``SAP_BASE_URL`` e obrigatorio, SEMPRE https (Basic Auth nao trafega em http)
   e sem userinfo (``user:pass@``): credencial so vem de SAP_USER/SAP_PASS.
-- ``SAP_PRD_HOSTS`` e obrigatorio: lista CSV em que cada entrada e hostname
-  valido ou IP literal. Qualquer entrada invalida (``/``, ``;``, ``[``, espaco
-  interno, vazia, esquema, porta) derruba o boot.
-- Guard ``APP_ENV`` x host: os DOIS lados passam por ``normalizar_host``
-  (lowercase, IDNA/punycode, sem ponto final) e comparam por igualdade exata.
+- ``SAP_PRD_HOSTS`` e obrigatorio: lista CSV de hostnames. Qualquer entrada
+  invalida (vazia, esquema, porta, ``/``, ``;``, espaco...) derruba o boot; a
+  entrada rejeitada aparece na mensagem truncada em 64 caracteres.
+- Guard ``APP_ENV`` x host: os DOIS lados passam por ``validar_hostname`` — so
+  hostname DNS ASCII (letras, digitos, hifen, pontos; rotulos de 1 a 63; ao
+  menos um ponto; ultimo rotulo nao numerico). IP literal (v4/v6, mapeado,
+  zone id), nao-ASCII e rotulos ``xn--`` sao proibidos: sem normalizacao nao
+  ha divergencia entre os lados. Comparacao por igualdade exata, em lowercase.
     * ``APP_ENV=prd`` exige host ``in SAP_PRD_HOSTS``
     * ``APP_ENV != 'prd'`` exige host ``not in SAP_PRD_HOSTS``
 - Credenciais (``SAP_USER`` / ``SAP_PASS``) sao ``SecretStr`` com strip. Vem de
@@ -40,31 +43,48 @@ from pydantic_settings import (
 
 _SECRETS_DIR_PADRAO = "/run/secrets"
 _CAMPOS_CREDENCIAL = ("sap_user", "sap_pass")
-_LABEL_HOSTNAME = re.compile(r"^(?!-)[a-z0-9-]{1,63}(?<!-)$")
+_ROTULO_DNS = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$")
+_MAX_ECO = 64
 
 
-def normalizar_host(valor: str) -> str:
-    """Forma canonica de um host para comparacao: hostname ou IP literal.
-
-    Hostname: lowercase, IDNA (punycode), sem o ponto final de FQDN; cada label
-    com [a-z0-9-], 1..63 chars, sem hifen nas pontas; total ate 253. IP: forma
-    comprimida do ``ipaddress``. Qualquer outra coisa -> ``ValueError``.
-    """
+def _eh_ip_literal(valor: str) -> bool:
+    candidato = valor.removeprefix("[").removesuffix("]").split("%", 1)[0]
     try:
-        return str(ipaddress.ip_address(valor))
+        ipaddress.ip_address(candidato)
     except ValueError:
-        pass
-    candidato = valor.lower()
-    if candidato.endswith((".", "\uff0e", "\u3002", "\uff61")):
-        candidato = candidato[:-1]
-    try:
-        ascii_host = candidato.encode("idna").decode("ascii")
-    except UnicodeError as exc:
-        raise ValueError("nao e hostname valido nem IP literal") from exc
-    labels = ascii_host.split(".")
-    if not ascii_host or len(ascii_host) > 253 or not all(_LABEL_HOSTNAME.match(x) for x in labels):
-        raise ValueError("nao e hostname valido nem IP literal")
-    return ascii_host
+        return False
+    return True
+
+
+def validar_hostname(valor: str) -> str:
+    """Devolve o hostname em lowercase ou levanta ``ValueError`` com o motivo.
+
+    Aceita so hostname DNS ASCII: letras, digitos, hifen e pontos; rotulos de 1
+    a 63 sem hifen nas pontas; ao menos um ponto; ate 253 caracteres; ultimo
+    rotulo nao numerico (pega formas de IPv4 que o ``ipaddress`` nao reconhece,
+    como ``10.0.5`` e ``0x0a.0.0.5``). Proibe IP literal, nao-ASCII e ``xn--``.
+    """
+    host = valor.lower()
+    if not host.isascii():
+        raise ValueError("so ASCII (IDN nao e permitido)")
+    if _eh_ip_literal(host):
+        raise ValueError("IP literal nao e permitido; use o hostname DNS")
+    if "." not in host or len(host) > 253:
+        raise ValueError("hostname DNS precisa de ao menos um ponto e ate 253 caracteres")
+    rotulos = host.split(".")
+    for rotulo in rotulos:
+        if not _ROTULO_DNS.fullmatch(rotulo):
+            raise ValueError("rotulo invalido (so a-z, 0-9 e hifen, 1 a 63, sem hifen nas pontas)")
+        if rotulo.startswith("xn--"):
+            raise ValueError("rotulo xn-- (IDN) nao e permitido")
+    if rotulos[-1].isdigit():
+        raise ValueError("ultimo rotulo numerico (parece IPv4)")
+    return host
+
+
+def _eco(valor: str) -> str:
+    """Entrada rejeitada para a mensagem de erro, truncada em ``_MAX_ECO``."""
+    return valor if len(valor) <= _MAX_ECO else valor[:_MAX_ECO] + "..."
 
 
 @dataclass(frozen=True)
@@ -159,7 +179,7 @@ class Settings(BaseSettings):
     @field_validator("sap_prd_hosts", mode="before")
     @classmethod
     def _parse_prd_hosts(cls, valor: object) -> object:
-        """CSV -> tuple de hosts normalizados; entrada invalida derruba o boot."""
+        """CSV -> tuple de hostnames validos; entrada invalida derruba o boot."""
         if isinstance(valor, str):
             itens = [x.strip() for x in valor.split(",")]
         elif isinstance(valor, (list, tuple)):
@@ -169,25 +189,24 @@ class Settings(BaseSettings):
         if not any(itens):
             return ()  # tratado como "obrigatorio" no validator after
 
-        normalizados: list[str] = []
+        hosts: list[str] = []
         for item in itens:
             if not item:
                 raise ValueError("SAP_PRD_HOSTS: entrada vazia na lista (virgula sobrando?)")
             if "://" in item:
                 raise ValueError(
-                    f"SAP_PRD_HOSTS: entrada '{item}' contem esquema; use apenas hostname"
+                    f"SAP_PRD_HOSTS: entrada '{_eco(item)}' contem esquema; use apenas hostname"
                 )
             try:
-                normalizados.append(normalizar_host(item))
-            except ValueError:
-                if ":" in item and "[" not in item:
-                    raise ValueError(
-                        f"SAP_PRD_HOSTS: entrada '{item}' contem porta; use apenas hostname"
-                    ) from None
+                hosts.append(validar_hostname(item))
+            except ValueError as exc:
+                motivo = str(exc)
+                if ":" in item and not _eh_ip_literal(item):
+                    motivo = "contem porta; use apenas hostname"
                 raise ValueError(
-                    f"SAP_PRD_HOSTS: entrada '{item}' nao e hostname valido nem IP literal"
+                    f"SAP_PRD_HOSTS: entrada '{_eco(item)}' invalida: {motivo}"
                 ) from None
-        return tuple(normalizados)
+        return tuple(hosts)
 
     @field_validator("sap_prd_hosts", mode="after")
     @classmethod
@@ -226,11 +245,10 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _valida_ambiente_vs_host(self) -> Settings:
-        host_url = (self.sap_base_url.host or "").removeprefix("[").removesuffix("]")
         try:
-            host = normalizar_host(host_url)
-        except ValueError:
-            raise ValueError("SAP_BASE_URL: host nao e hostname valido nem IP literal") from None
+            host = validar_hostname(self.sap_base_url.host or "")
+        except ValueError as exc:
+            raise ValueError(f"SAP_BASE_URL: host precisa ser hostname DNS ASCII ({exc})") from None
         prd_hosts = set(self.sap_prd_hosts)
         if self.app_env == "prd":
             if host not in prd_hosts:
