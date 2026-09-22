@@ -8,6 +8,8 @@ e limpa qualquer ``SAP_*`` / ``APP_ENV`` / ``LOG_LEVEL`` herdado do shell.
 from __future__ import annotations
 
 import logging
+import sys
+import threading
 import warnings
 from collections.abc import Callable, Iterator
 from pathlib import Path
@@ -46,7 +48,7 @@ def isolated_settings_env(
 
 @pytest.fixture(autouse=True)
 def reset_logging() -> Iterator[None]:
-    """Restaura structlog, TODOS os loggers stdlib e a captura de warnings.
+    """Restaura structlog, TODOS os loggers stdlib, warnings e excepthooks.
 
     Necessario porque ha codigo que mexe no logging global durante os testes
     (ex.: ``importlinter.cli`` roda ``dictConfig`` com
@@ -64,8 +66,10 @@ def reset_logging() -> Iterator[None]:
     ]
     snapshot = [(lg, lg.disabled, lg.handlers[:], lg.level, lg.propagate) for lg in loggers]
     prev_showwarning = warnings.showwarning
+    prev_excepthook, prev_thread_hook = sys.excepthook, threading.excepthook
     structlog.reset_defaults()
     yield
+    sys.excepthook, threading.excepthook = prev_excepthook, prev_thread_hook
     logging.captureWarnings(False)
     warnings.showwarning = prev_showwarning
     structlog.reset_defaults()

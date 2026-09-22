@@ -22,6 +22,8 @@ Esta plataforma cria contratos de venda (ZCON) no SAP S/4HANA pelo serviço ODat
 - **`app/domain/` é puro:** sem FastAPI, SQLAlchemy, httpx ou I/O. O `import-linter` valida isso.
 - **Nunca reenviar automaticamente um POST ao SAP que possa ter chegado lá.** Timeout, conexão caída depois do envio ou 5xx depois do envio vão para o estado `INCERTO`. Retry automático só é permitido para falha *antes* do POST (DNS, connect, CSRF fetch).
 - **Credenciais SAP** só via Docker secret ou arquivo. Nunca em código, `.env` versionado, log ou `request_body` salvo. O header `Authorization` é sempre redigido.
+- **Log do adapter SAP é allowlist:** cada chamada ao SAP loga **só** `method`, URL **sem query string**, `status`, `duration_ms`, `correlation_id` e `contract_id`. **Nunca** headers nem body crus, nem em `DEBUG`. O que precisar de auditoria vai para `contract_submissions` (redigido). A redação por padrão em `app/observability/logging.py` é rede de segurança, não licença para logar mais.
+- **Logs são 100% JSON**, inclusive warnings, exceções não tratadas e falha de startup. Entrypoints chamam `configure_logging` antes de instanciar o `Settings`.
 - **Payload OData:**
   - strings vazias vão como `""` (nunca `null`)
   - campos `Computed` (`SalesContract`, `SalesContractItem`, `ConditionUUID`) nunca são enviados
