@@ -55,7 +55,18 @@ Se a skill **brfertil-design** estiver sincronizada da sua conta, o Claude Code 
 
 > ⚠️ Plugins de terceiros têm acesso total à sua máquina e ao repo, e isso inclui a credencial do SAP. **Passe cada um no `auditor-de-skills` antes de instalar.** Só entram no `.claude/settings.json` (versionado) depois de auditados — os plugins listados abaixo **não** estão no `enabledPlugins` deste repo hoje.
 
-> Além de instalar (`claude plugin install <nome>@<marketplace> --scope project`), o marketplace precisa estar **registrado em `extraKnownMarketplaces` no `.claude/settings.json`** para o Claude Code aceitá-lo. Ver docs para o schema exato de cada entrada.
+> Além de instalar (`claude plugin install <nome>@<marketplace> --scope project`), o marketplace precisa estar **registrado em `extraKnownMarketplaces` no `.claude/settings.json`** para o Claude Code aceitá-lo. Schema oficial:
+>
+> ```json
+> {
+>   "extraKnownMarketplaces": {
+>     "trailofbits": { "source": { "source": "github", "repo": "trailofbits/skills" } },
+>     "claude-code-workflows": { "source": { "source": "github", "repo": "wshobson/agents" } }
+>   }
+> }
+> ```
+>
+> Só adicionar ao `.claude/settings.json` **depois** de passar no `auditor-de-skills`.
 
 **Trail of Bits:** segurança e Python moderno. É uma empresa de auditoria de segurança de referência.
 
