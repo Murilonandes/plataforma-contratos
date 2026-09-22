@@ -28,7 +28,7 @@ plataforma-worker = "app.entrypoints.worker:main"
 [dependency-groups]
 dev = [
     "pytest>=8.3,<9.0",
-    "pytest-asyncio>=0.24,<1.0",
+    "pytest-asyncio>=0.24,<2.0",
     "pytest-cov>=5.0,<7.0",
     "hypothesis>=6.112,<7.0",
     "respx>=0.22,<1.0",
