@@ -1,19 +1,30 @@
 version: 2
+# Politica: major nunca vem do Dependabot (fura os tetos "<N+1" do projeto);
+# upgrade de major e tarefa planejada no backlog. Minor + patch num unico grupo
+# por ecossistema.
 updates:
   - package-ecosystem: uv
     directory: /backend
     schedule:
       interval: weekly
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     groups:
       backend-minor-patch:
+        patterns: ["*"]
         update-types: [minor, patch]
 
   - package-ecosystem: npm
     directory: /frontend
     schedule:
       interval: weekly
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     groups:
       frontend-minor-patch:
+        patterns: ["*"]
         update-types: [minor, patch]
 
   - package-ecosystem: docker
@@ -30,6 +41,10 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     groups:
-      actions:
+      actions-minor-patch:
         patterns: ["*"]
+        update-types: [minor, patch]

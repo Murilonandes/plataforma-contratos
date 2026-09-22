@@ -796,6 +796,12 @@ da Fase 0 (0 CRITICAL, 0 HIGH, 4 MEDIUM, 11 LOW, 6 INFO). Corrigidos antes da Fa
   `secrets/`) antes de qualquer token de build.
 - **Nota do 20** — na Fase 2 a credencial SAP vai **só para o worker**; a API não recebe
   `SAP_USER`/`SAP_PASS` (compose e stack).
+- **Tarefa própria: pytest 9 + pytest-asyncio compatível** — subir juntos `pytest` 8→9 e
+  `pytest-asyncio` 0.26→1.x (o 0.26 exige `pytest<9`; subir só um não resolve). Conferir
+  `asyncio_mode`/`asyncio_default_fixture_loop_scope` e as fixtures async. O Dependabot não
+  propõe major (política em `.github/dependabot.yml`): os majors fechados em 2026-09-22 foram
+  mypy 2, structlog 26, pytest-cov 7, pytest-asyncio 1.4, @types/node 26, node 26, python 3.14,
+  nginx 1.31.
 - **Stack Swarm com healthcheck** — a imagem do backend não traz `HEALTHCHECK` (é compartilhada
   api/worker); o stack de PRD declara o healthcheck da `api` (mesmo comando do compose) e nenhum
   healthcheck HTTP no `worker`.
