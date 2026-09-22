@@ -44,6 +44,32 @@ jobs:
       - name: gate de cobertura (domain + application >= 90%)
         run: uv run python scripts/coverage_gate.py
 
+  mutation:
+    # mutmut exige fork (POSIX): no Windows do dev nao roda, so aqui.
+    # Alvo: app/domain/money.py e installments.py ([tool.mutmut] no pyproject).
+    runs-on: ubuntu-latest
+    env:
+      HYPOTHESIS_PROFILE: dev
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          version: "0.12.5"
+          python-version: "3.12"
+          working-directory: backend
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+
+      - run: uv sync --locked
+      - name: mutmut run
+        run: uv run mutmut run
+      - name: gate de mutacao (zero sobreviventes fora dos equivalentes justificados)
+        run: uv run python scripts/mutation_gate.py
+
   frontend:
     runs-on: ubuntu-latest
     defaults:

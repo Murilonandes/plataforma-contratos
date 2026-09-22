@@ -1,0 +1,4 @@
+# Mutantes equivalentes (nao mudam o comportamento observavel), aceitos pelo
+# scripts/mutation_gate.py. Um por linha: <nome do mutante>  # <justificativa>
+# Justificativa obrigatoria. Nada entra aqui sem revisao: o default e escrever
+# um teste que mate o mutante.

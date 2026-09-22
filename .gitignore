@@ -37,3 +37,6 @@ infra/secrets/
 
 # Docker
 .docker/
+
+# mutmut
+backend/mutants/
