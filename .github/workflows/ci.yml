@@ -18,6 +18,8 @@ concurrency:
 jobs:
   backend:
     runs-on: ubuntu-latest
+    env:
+      HYPOTHESIS_PROFILE: ci
     defaults:
       run:
         working-directory: backend

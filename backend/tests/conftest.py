@@ -3,11 +3,16 @@
 Isola o ambiente de cada teste: aponta o ``secrets_dir`` do ``Settings`` para
 um diretorio temporario (evita depender de ``/run/secrets`` na maquina do dev)
 e limpa qualquer ``SAP_*`` / ``APP_ENV`` / ``LOG_LEVEL`` herdado do shell.
+
+Perfis do Hypothesis: ``dev`` (default, rapido) e ``ci`` (mais exemplos e
+``derandomize=True``: o mesmo commit gera os mesmos exemplos, sem flaky).
+Selecionado por ``HYPOTHESIS_PROFILE`` (o CI usa ``ci``).
 """
 
 from __future__ import annotations
 
 import logging
+import os
 import sys
 import threading
 import warnings
@@ -16,6 +21,17 @@ from pathlib import Path
 
 import pytest
 import structlog
+from hypothesis import HealthCheck, settings
+
+settings.register_profile("dev", max_examples=100)
+settings.register_profile(
+    "ci",
+    max_examples=1000,
+    derandomize=True,
+    deadline=None,
+    suppress_health_check=[HealthCheck.too_slow],
+)
+settings.load_profile(os.environ.get("HYPOTHESIS_PROFILE", "dev"))
 
 _ENV_VARS_ISOLADAS = (
     "APP_ENV",

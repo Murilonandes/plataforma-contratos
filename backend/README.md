@@ -29,7 +29,7 @@ Domínio + aplicação são medidos em conjunto (≥ 90%); API/infra ficam de fo
 Enquanto as duas camadas não têm nenhum statement (Fase 0), o gate é pulado com aviso;
 arquivo que nenhum teste importa conta como 0%.
 
-## Pendências previstas
+## Notas
 
-- Perfis do Hypothesis (`dev`, `ci` com `derandomize=True`) serão registrados em
-  `tests/conftest.py` a partir da Tarefa 1.x, quando houver testes de propriedade.
+- Perfis do Hypothesis em `tests/conftest.py`: `dev` (default) e `ci` (1000 exemplos,
+  `derandomize=True`). Para rodar como no CI: `HYPOTHESIS_PROFILE=ci uv run pytest`.
