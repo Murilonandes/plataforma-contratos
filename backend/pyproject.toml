@@ -91,6 +91,46 @@ init_forbid_extra = true
 init_typed = true
 warn_required_dynamic_aliases = true
 
+# ---- Import Linter ---------------------------------------------------------
+# Regra de dependencia: domain <- application <- infrastructure/api.
+# Imports indiretos tambem contam (ex.: domain -> app.settings -> pydantic).
+
+[tool.importlinter]
+root_package = "app"
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+name = "domain e puro (sem web, orm, http, nem pydantic)"
+type = "forbidden"
+source_modules = ["app.domain"]
+forbidden_modules = [
+    "fastapi",
+    "starlette",
+    "sqlalchemy",
+    "alembic",
+    "httpx",
+    "pydantic",
+    "pydantic_settings",
+    "app.infrastructure",
+    "app.api",
+    "app.application",
+]
+
+[[tool.importlinter.contracts]]
+name = "application nao conhece web/infra"
+type = "forbidden"
+source_modules = ["app.application"]
+forbidden_modules = ["fastapi", "starlette", "app.api", "app.infrastructure"]
+
+[[tool.importlinter.contracts]]
+name = "camadas em layers"
+type = "layers"
+layers = [
+    "app.api | app.infrastructure",
+    "app.application",
+    "app.domain",
+]
+
 # ---- Pytest ----------------------------------------------------------------
 
 [tool.pytest.ini_options]
