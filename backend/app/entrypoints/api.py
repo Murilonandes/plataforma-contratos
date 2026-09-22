@@ -25,6 +25,7 @@ def main() -> None:
             port=8000,
             log_config=None,  # mantem o JSON do configure_logging (uvicorn nao sobrescreve)
             proxy_headers=True,
+            access_log=False,  # o middleware loga o acesso (sem query, com correlation_id)
         )
     except ValidationError as exc:
         # include_input=False: o input e o env inteiro (inclui SAP_PASS).

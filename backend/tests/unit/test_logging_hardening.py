@@ -97,7 +97,8 @@ def test_basic_e_bearer_em_string_livre_sao_mascarados(capsys: pytest.CaptureFix
     linha, bruto = _ultima(capsys)
     assert _SEGREDO not in bruto
     assert "abc.def-ghi" not in bruto
-    assert f"Basic {REDACTED}" in linha["event"]
+    # a regra de "authorization" mascara o valor inteiro (mais forte que so o Basic)
+    assert linha["event"] == f"chamando SAP com Authorization: {REDACTED}"
 
 
 def test_traceback_de_log_exception_e_mascarado(capsys: pytest.CaptureFixture[str]) -> None:
