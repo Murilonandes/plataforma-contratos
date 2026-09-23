@@ -886,6 +886,9 @@ git commit -m "feat(domain): helpers de quantize para BRL/qty/pct"
 > (`PartnerFunction` é `Edm.String` MaxLength 2 etc.). `enums.py` só tem o que é nosso. Códigos SAP
 > viram validação de formato no VO e lista de valores permitidos em config por sales org, validada no
 > caso de uso (ARCHITECTURE §8, `TODO(decisão #11)`).
+>
+> **`Origin` (`WEB`/`API`) não entra aqui:** fica para a **Fase 3** (auth/API define as origens;
+> coluna `origin` de `contracts`, ARCHITECTURE §6). Decisão do dono do projeto, 2026-09-23.
 
 - [x] **Passo 1** — Escrever `test_enums.py`:
   - `ContractStatus` tem exatamente `{RASCUNHO, NA_FILA, ENVIANDO, CRIADO, ERRO_NEGOCIO, ERRO_TECNICO, INCERTO, CANCELADO}`
