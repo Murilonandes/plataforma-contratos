@@ -149,10 +149,25 @@ def test_max_length_provisorio_do_long_text() -> None:
     assert _um_erro(dados) == ("to_Text[0].LongText", ErrorCode.MAX_LENGTH, {"max": 1000})
 
 
-def test_campo_sem_max_length_no_metadata_nao_e_limitado() -> None:
+@pytest.mark.parametrize(
+    ("onde", "chave"),
+    [
+        ((), "NotaInternaCli"),
+        ((), "PedidoSysFertil"),
+        (("to_Item", 0), "Culture"),
+    ],
+)
+def test_teto_provisorio_de_255_sem_max_length_no_metadata(
+    onde: tuple[str, int] | tuple[()], chave: str
+) -> None:
+    """TODO(decisao #5): MaxLength real a confirmar com a Sysfertil."""
     dados = _valido()
-    dados["NotaInternaCli"] = "x" * 5000  # TODO(decisao #5)
-    assert len(Contract.criar(dados).header.nota_interna_cli) == 5000
+    alvo = dados[onde[0]][onde[1]] if onde else dados
+    path = f"{onde[0]}[{onde[1]}].{chave}" if onde else chave
+    alvo[chave] = "x" * 255
+    Contract.criar(dados)
+    alvo[chave] = "x" * 256
+    assert _um_erro(dados) == (path, ErrorCode.MAX_LENGTH, {"max": 255})
 
 
 # ---- Obrigatoriedade (FieldControl/Mandatory) --------------------------------

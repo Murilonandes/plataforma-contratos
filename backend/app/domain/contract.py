@@ -23,7 +23,8 @@ expoente de um valor ja valido (``1`` -> ``1.000``).
 MaxLength e validado depois do strip. Obrigatoriedade = ``FieldControl/Mandatory``
 do ``$metadata`` (``Nullable=false`` nao implica obrigatorio). A tabela
 ``ESPECIFICACOES`` espelha o ``$metadata``; ``test_contract_metadata`` confere.
-Strings sem MaxLength no metadata: ``TODO(decisao #5)``.
+Strings sem MaxLength no metadata tem teto provisorio (``TODO(decisao #5)``):
+255 em ``NotaInternaCli``, ``PedidoSysFertil`` e ``Culture``; 1000 em ``LongText``.
 """
 
 from __future__ import annotations
@@ -67,6 +68,10 @@ def _t(odata: str, attr: str, max_len: int | None, *, obrigatorio: bool = False)
 
 _T = Tipo
 
+# Strings sem MaxLength no metadata: teto provisorio ate a Sysfertil confirmar
+# o tamanho real (TODO(decisao #5)). LongText tem o seu (1000).
+_TETO_PROVISORIO: Final = 255
+
 CABECALHO: Final = (
     _t("SalesContractType", "sales_contract_type", 4, obrigatorio=True),
     _t("SalesOrganization", "sales_organization", 4, obrigatorio=True),
@@ -83,8 +88,8 @@ CABECALHO: Final = (
     _t("PurchaseOrderByCustomer", "purchase_order_by_customer", 35),
     Campo("CustomerPurchaseOrderDate", "customer_purchase_order_date", _T.DATA),
     Campo("SalesContractValidityEndDate", "sales_contract_validity_end_date", _T.DATA),
-    _t("NotaInternaCli", "nota_interna_cli", None),  # TODO(decisao #5) MaxLength real
-    _t("PedidoSysFertil", "pedido_sysfertil", None),  # TODO(decisao #5) MaxLength real
+    _t("NotaInternaCli", "nota_interna_cli", _TETO_PROVISORIO),  # TODO(decisao #5) MaxLength real
+    _t("PedidoSysFertil", "pedido_sysfertil", _TETO_PROVISORIO),  # TODO(decisao #5) MaxLength real
     _t("CodTaxa", "cod_taxa", 20),  # TODO(decisao #7) opcional
 )
 
@@ -105,7 +110,7 @@ ITEM: Final = (
     _t("IncotermsClassification", "incoterms_classification", 3),
     _t("IncotermsLocation1", "incoterms_location1", 70),
     _t("TransactionCurrency", "transaction_currency", 3),
-    _t("Culture", "culture", None),  # TODO(decisao #5) MaxLength real
+    _t("Culture", "culture", _TETO_PROVISORIO),  # TODO(decisao #5) MaxLength real
     Campo("ScheduleDate", "schedule_date", _T.DATA),
     Campo("ScheduleDate2", "schedule_date2", _T.DATA),  # TODO(decisao #6) semantica
     _t("CustomerPaymentTerms", "customer_payment_terms", 4),

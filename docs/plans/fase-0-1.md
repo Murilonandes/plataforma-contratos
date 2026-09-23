@@ -970,8 +970,9 @@ git commit -m "feat(domain): exceções de domínio"
 >   também validada (`decimal_precision`).
 > - Entrada já tipada (`Decimal`, `date`, `int`); conversão do JSON é da API (Fase 3). Campo
 >   desconhecido é erro (`unknown_field`), inclusive `StatusBlock` e campos Computed.
-> - Sem MaxLength no metadata: `NotaInternaCli`, `PedidoSysFertil`, `Culture` sem limite;
->   `LongText` 1000 provisório (`TODO(decisão #5)`).
+> - Sem MaxLength no metadata: teto provisório de 255 em `NotaInternaCli`, `PedidoSysFertil` e
+>   `Culture`; `LongText` 1000 provisório (`TODO(decisão #5)`). Nenhuma string do domínio fica
+>   sem limite (`test_toda_string_do_dominio_tem_limite`).
 > - `docs/sap/metadata.xml` do repo tem `&` sem escape (não é XML bem-formado); o teste escapa antes
 >   de parsear, sem alterar o arquivo.
 

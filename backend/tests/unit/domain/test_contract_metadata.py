@@ -24,7 +24,26 @@ _TIPO_EDM = {
 }
 
 # Strings sem MaxLength no metadata e com limite provisorio no dominio (decisao #5).
-_MAX_PROVISORIO = {("TextosContratoType", "LongText"): 1000}
+_MAX_PROVISORIO = {
+    ("TextosContratoType", "LongText"): 1000,
+    ("CriaContratoType", "NotaInternaCli"): 255,
+    ("CriaContratoType", "PedidoSysFertil"): 255,
+    ("ItensContratoType", "Culture"): 255,
+}
+
+
+def test_todo_limite_provisorio_e_de_string_sem_max_length_no_metadata() -> None:
+    """Teto provisorio so onde o metadata nao define MaxLength (decisao #5)."""
+    for entidade, nome in _MAX_PROVISORIO:
+        p = metadata()[entidade][nome]
+        assert p.tipo == "String"
+        assert p.max_length is None
+
+
+def test_toda_string_do_dominio_tem_limite() -> None:
+    """Nenhuma string sem teto: ou MaxLength do metadata, ou provisorio (decisao #5)."""
+    sem_limite = [(e, c.odata) for e, c in _casos() if c.tipo is Tipo.TEXTO and c.max_len is None]
+    assert sem_limite == []
 
 
 def _casos() -> list[tuple[str, Campo]]:
