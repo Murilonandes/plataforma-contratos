@@ -241,3 +241,39 @@ def test_invalid_transition_error_carrega_estado_evento_e_mensagem() -> None:
     assert erro.from_status is ContractStatus.CRIADO
     assert erro.event is TransitionEvent.SUBMETER
     assert str(erro) == "transicao invalida: evento 'SUBMETER' nao e permitido no estado 'CRIADO'"
+
+
+# ---- Mensagens nao citam indice base 0 ----------------------------------------
+
+_PARAMS_EXEMPLO: dict[ErrorCode, dict[str, object]] = {
+    ErrorCode.MAX_LENGTH: {"max": 40},
+    ErrorCode.DECIMAL_SCALE: {"max": 3},
+    ErrorCode.DECIMAL_PRECISION: {"max": 12},
+    ErrorCode.MIN_ITEMS: {"min": 1},
+    ErrorCode.LENGTH_MISMATCH: {"esperado": 3, "recebido": 2},
+    ErrorCode.DUPLICATE_PARTNER_FUNCTION: {"funcao": "Y1"},
+    ErrorCode.INVALID_TYPE: {"tipo": "texto"},
+}
+
+
+@pytest.mark.parametrize("code", list(ErrorCode))
+@pytest.mark.parametrize(
+    "path",
+    [
+        "to_Item[0].Material",
+        "to_Item[1]",
+        "to_FormPag[2].Porcentagem",
+        "to_FormPag[0]",
+        "to_Item[3].to_PricingElement[1].ConditionType",
+        "to_Partner[4]",
+    ],
+)
+def test_mensagem_nao_cita_indice_base_0(code: ErrorCode, path: str) -> None:
+    erro = FieldError.criar(path, code, **_PARAMS_EXEMPLO.get(code, {}))  # type: ignore[arg-type]
+    assert re.search(r"\[\d+\]", erro.message) is None, erro.message
+    assert erro.path == path  # a posicao fica no path, para o front
+
+
+def test_erro_no_elemento_inteiro_usa_o_nome_da_lista_sem_indice() -> None:
+    erro = FieldError.criar("to_Partner[1]", ErrorCode.PARTNER_IDENTIFIER_REQUIRED)
+    assert erro.message == "campo 'to_Partner' precisa de ao menos um identificador de parceiro"

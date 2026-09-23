@@ -7,6 +7,7 @@ modulo ``decimal`` e ``ROUND_HALF_EVEN`` e daria outro resultado nos empates.
 - ``BRL`` 2 casas (``Valor`` das parcelas, precos)
 - ``QTY`` 3 casas (``RequestedQuantity``)
 - ``PCT`` 4 casas (``Porcentagem`` das parcelas)
+- ``RATE`` 9 casas (``ConditionRateValue``, Edm.Decimal Scale 9)
 """
 
 from __future__ import annotations
@@ -16,6 +17,7 @@ from decimal import ROUND_HALF_UP, Decimal
 BRL = Decimal("0.01")
 QTY = Decimal("0.001")
 PCT = Decimal("0.0001")
+RATE = Decimal("0.000000001")
 
 
 def _ensure_decimal(v: object) -> Decimal:
@@ -37,3 +39,7 @@ def quantize_qty(v: Decimal) -> Decimal:
 
 def quantize_pct(v: Decimal) -> Decimal:
     return _ensure_decimal(v).quantize(PCT, rounding=ROUND_HALF_UP)
+
+
+def quantize_rate(v: Decimal) -> Decimal:
+    return _ensure_decimal(v).quantize(RATE, rounding=ROUND_HALF_UP)

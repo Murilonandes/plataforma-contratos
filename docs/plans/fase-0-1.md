@@ -955,6 +955,26 @@ git commit -m "feat(domain): exceções de domínio"
 
 ## Tarefa 1.4 — VOs do contrato (`contract.py`) — `@dataclass(frozen=True)`, sem Pydantic
 
+> **Implementado em 2026-09-23 com o desenho revisado pelo dono do projeto** (substitui o esqueleto
+> abaixo onde divergir):
+> - Validação **acumulada**: `Contract.criar(dados)` valida tudo com um `ErrorCollector` e levanta
+>   `DomainValidationError` **uma vez**; os dataclasses frozen só são construídos depois. O
+>   `__post_init__` só confere tipos (uso programático). Paths no formato OData
+>   (`to_Item[1].Material`, índice base 0); mensagens sem índice.
+> - Tabela declarativa `ESPECIFICACOES` por EntityType, conferida contra o `$metadata` por
+>   `test_contract_metadata.py` (Mandatory, MaxLength, IsUpperCase, Scale, Precision, tipos; sem
+>   Computed nem `StatusBlock`).
+> - Normalização: strip em strings; uppercase **só** em `IsUpperCase` (no metadata: só `FormPag`);
+>   nada mais. **Sem arredondamento**: escala acima da permitida é erro `decimal_scale` (o exemplo
+>   `1.2345 -> 1.235` deste plano não vale mais); `money.py` só canoniza o expoente. `Precision`
+>   também validada (`decimal_precision`).
+> - Entrada já tipada (`Decimal`, `date`, `int`); conversão do JSON é da API (Fase 3). Campo
+>   desconhecido é erro (`unknown_field`), inclusive `StatusBlock` e campos Computed.
+> - Sem MaxLength no metadata: `NotaInternaCli`, `PedidoSysFertil`, `Culture` sem limite;
+>   `LongText` 1000 provisório (`TODO(decisão #5)`).
+> - `docs/sap/metadata.xml` do repo tem `&` sem escape (não é XML bem-formado); o teste escapa antes
+>   de parsear, sem alterar o arquivo.
+
 **Arquivos:**
 - Criar: `backend/app/domain/contract.py`, `backend/tests/unit/domain/test_contract_vos.py`
 

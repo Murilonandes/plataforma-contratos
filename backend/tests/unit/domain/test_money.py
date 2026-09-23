@@ -13,7 +13,16 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from app.domain.money import BRL, PCT, QTY, quantize_brl, quantize_pct, quantize_qty
+from app.domain.money import (
+    BRL,
+    PCT,
+    QTY,
+    RATE,
+    quantize_brl,
+    quantize_pct,
+    quantize_qty,
+    quantize_rate,
+)
 
 # ---- Exemplos do plano -------------------------------------------------------
 
@@ -46,6 +55,7 @@ def test_pct_quatro_casas() -> None:
         (quantize_qty, "0.0005", "0.001"),  # HALF_EVEN daria 0.000
         (quantize_pct, "33.33325", "33.3333"),  # HALF_EVEN daria 33.3332
         (quantize_pct, "0.00005", "0.0001"),  # HALF_EVEN daria 0.0000
+        (quantize_rate, "1.0000000005", "1.000000001"),  # HALF_EVEN daria 1.000000000
     ],
 )
 def test_empate_usa_half_up(funcao: object, entrada: str, esperado: str) -> None:
@@ -58,6 +68,7 @@ def test_empate_usa_half_up(funcao: object, entrada: str, esperado: str) -> None
         (quantize_brl, "-10.005", "-10.01"),  # HALF_UP afasta do zero
         (quantize_qty, "-1.2345", "-1.235"),
         (quantize_pct, "-33.33325", "-33.3333"),
+        (quantize_rate, "-1.0000000005", "-1.000000001"),
     ],
 )
 def test_negativo_arredonda_afastando_do_zero(funcao: object, entrada: str, esperado: str) -> None:
@@ -69,7 +80,12 @@ def test_negativo_arredonda_afastando_do_zero(funcao: object, entrada: str, espe
 
 @pytest.mark.parametrize(
     ("funcao", "unidade", "expoente"),
-    [(quantize_brl, BRL, -2), (quantize_qty, QTY, -3), (quantize_pct, PCT, -4)],
+    [
+        (quantize_brl, BRL, -2),
+        (quantize_qty, QTY, -3),
+        (quantize_pct, PCT, -4),
+        (quantize_rate, RATE, -9),
+    ],
 )
 def test_resultado_tem_exatamente_as_casas_da_unidade(
     funcao: object, unidade: Decimal, expoente: int
@@ -84,12 +100,13 @@ def test_constantes_das_unidades() -> None:
     assert Decimal("0.01") == BRL
     assert Decimal("0.001") == QTY
     assert Decimal("0.0001") == PCT
+    assert Decimal("0.000000001") == RATE
 
 
 # ---- Rejeita o que nao e Decimal ---------------------------------------------
 
 
-@pytest.mark.parametrize("funcao", [quantize_brl, quantize_qty, quantize_pct])
+@pytest.mark.parametrize("funcao", [quantize_brl, quantize_qty, quantize_pct, quantize_rate])
 @pytest.mark.parametrize("valor", [10.005, 10, "10.005", None])
 def test_rejeita_tipo_diferente_de_decimal(funcao: object, valor: object) -> None:
     with pytest.raises(TypeError) as exc:
@@ -98,7 +115,7 @@ def test_rejeita_tipo_diferente_de_decimal(funcao: object, valor: object) -> Non
     assert str(exc.value) == "use Decimal, nunca float"
 
 
-@pytest.mark.parametrize("funcao", [quantize_brl, quantize_qty, quantize_pct])
+@pytest.mark.parametrize("funcao", [quantize_brl, quantize_qty, quantize_pct, quantize_rate])
 @pytest.mark.parametrize("valor", ["NaN", "sNaN", "Infinity", "-Infinity"])
 def test_rejeita_decimal_nao_finito(funcao: object, valor: str) -> None:
     with pytest.raises(ValueError) as exc:  # noqa: PT011 — mensagem conferida abaixo
@@ -119,7 +136,12 @@ def test_rejeita_decimal_nao_finito(funcao: object, valor: str) -> None:
     )
 )
 def test_quantizacao_erra_no_maximo_meia_unidade(valor: Decimal) -> None:
-    for funcao, unidade in ((quantize_brl, BRL), (quantize_qty, QTY), (quantize_pct, PCT)):
+    for funcao, unidade in (
+        (quantize_brl, BRL),
+        (quantize_qty, QTY),
+        (quantize_pct, PCT),
+        (quantize_rate, RATE),
+    ):
         resultado = funcao(valor)
         assert abs(resultado - valor) <= unidade / 2
         assert resultado.as_tuple().exponent == unidade.as_tuple().exponent

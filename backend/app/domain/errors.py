@@ -17,6 +17,7 @@ Contrato consumido pelo front (via API), por isso estavel:
 
 from __future__ import annotations
 
+import re
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from enum import StrEnum, unique
@@ -26,6 +27,7 @@ from typing import Final
 from app.domain.enums import ContractStatus, TransitionEvent
 
 ParamValor = str | int | bool | None
+_SUFIXO_INDICE = re.compile(r"\[\d+\]$")
 
 
 @unique
@@ -34,29 +36,35 @@ class ErrorCode(StrEnum):
 
     REQUIRED = "required"
     MAX_LENGTH = "max_length"
-    NOT_UPPERCASE = "not_uppercase"
     NOT_DECIMAL = "not_decimal"
     NOT_FINITE = "not_finite"
     DECIMAL_SCALE = "decimal_scale"
+    DECIMAL_PRECISION = "decimal_precision"
     MUST_BE_POSITIVE = "must_be_positive"
     MIN_ITEMS = "min_items"
     LENGTH_MISMATCH = "length_mismatch"
     INVALID_WEIGHT = "invalid_weight"
     DUPLICATE_PARTNER_FUNCTION = "duplicate_partner_function"
     PARTNER_IDENTIFIER_REQUIRED = "partner_identifier_required"
+    UNKNOWN_FIELD = "unknown_field"
+    INVALID_TYPE = "invalid_type"
 
 
 # code -> (template da mensagem em PT-BR, params exigidos). ``{campo}`` e o
-# ultimo segmento do path e sempre esta disponivel.
+# ultimo segmento do path SEM indice (``to_Item[1]`` -> ``to_Item``): mensagem
+# nunca cita posicao base 0; o front posiciona pelo ``path``.
 MENSAGENS: Final[Mapping[ErrorCode, tuple[str, tuple[str, ...]]]] = MappingProxyType(
     {
         ErrorCode.REQUIRED: ("campo '{campo}' e obrigatorio", ()),
         ErrorCode.MAX_LENGTH: ("campo '{campo}' excede {max} caracteres", ("max",)),
-        ErrorCode.NOT_UPPERCASE: ("campo '{campo}' deve estar em maiusculas", ()),
         ErrorCode.NOT_DECIMAL: ("campo '{campo}' precisa ser Decimal, nunca float", ()),
         ErrorCode.NOT_FINITE: ("campo '{campo}' precisa ser finito (sem NaN/Infinity)", ()),
         ErrorCode.DECIMAL_SCALE: (
             "campo '{campo}' aceita no maximo {max} casas decimais",
+            ("max",),
+        ),
+        ErrorCode.DECIMAL_PRECISION: (
+            "campo '{campo}' aceita no maximo {max} digitos antes da virgula",
             ("max",),
         ),
         ErrorCode.MUST_BE_POSITIVE: ("campo '{campo}' deve ser maior que zero", ()),
@@ -74,6 +82,8 @@ MENSAGENS: Final[Mapping[ErrorCode, tuple[str, tuple[str, ...]]]] = MappingProxy
             "campo '{campo}' precisa de ao menos um identificador de parceiro",
             (),
         ),
+        ErrorCode.UNKNOWN_FIELD: ("campo '{campo}' nao e aceito", ()),
+        ErrorCode.INVALID_TYPE: ("campo '{campo}' deve ser {tipo}", ("tipo",)),
     }
 )
 
@@ -115,7 +125,7 @@ class FieldError:
         for nome, valor in params.items():
             if valor is not None and not isinstance(valor, (str, int, bool)):
                 raise TypeError(f"param '{nome}' precisa ser str, int, bool ou None")
-        nome_campo = path.rsplit(".", 1)[-1]
+        nome_campo = _SUFIXO_INDICE.sub("", path.rsplit(".", 1)[-1])
         mensagem = template.format(campo=nome_campo, **params)
         return cls(path=path, code=code, message=mensagem, params=MappingProxyType(dict(params)))
 
