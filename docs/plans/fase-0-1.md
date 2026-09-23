@@ -882,20 +882,25 @@ git commit -m "feat(domain): helpers de quantize para BRL/qty/pct"
 
 **Passos:**
 
-- [ ] **Passo 1** — Escrever `test_enums.py`:
+> **Escopo corrigido (2026-09-23, dono do projeto):** o `$metadata` **não** enumera códigos do SAP
+> (`PartnerFunction` é `Edm.String` MaxLength 2 etc.). `enums.py` só tem o que é nosso. Códigos SAP
+> viram validação de formato no VO e lista de valores permitidos em config por sales org, validada no
+> caso de uso (ARCHITECTURE §8, `TODO(decisão #11)`).
+
+- [x] **Passo 1** — Escrever `test_enums.py`:
   - `ContractStatus` tem exatamente `{RASCUNHO, NA_FILA, ENVIANDO, CRIADO, ERRO_NEGOCIO, ERRO_TECNICO, INCERTO, CANCELADO}`
-  - `Origin` tem `{WEB, API}`
-  - `PartnerFunction` inclui os códigos que aparecem no `$metadata` + `Y1`, `Y2` (parceiros customizados usados no `payload_exemplo.json`). Ler `docs/sap/metadata.xml` antes de fixar a lista
-  - `Language.PT == "PT"`
-  - **Nenhum enum `StatusBlock`**: o valor `"06"` é constante privada do mapper (Tarefa 1.8), não é conceito de domínio
+  - `TransitionEvent` tem exatamente os 15 eventos da matriz de 21 transições
+  - `ActorKind` tem `{user, admin, worker, system}`
+  - estados, eventos e atores conferidos contra a matriz do ARCHITECTURE §4 (o teste lê o `.md`)
+  - **nenhum** enum de código SAP (`PartnerFunction`, `ConditionType`, `FormPag`, `LongTextID`, `Language`, `SalesContractType`) nem `StatusBlock` (`"06"` é constante do mapper, Tarefa 1.8)
 
-- [ ] **Passo 2** — Implementar como `StrEnum` (Python 3.12).
+- [x] **Passo 2** — Implementar como `StrEnum` (Python 3.12).
 
-- [ ] **Passo 3** — Verde, commit.
+- [x] **Passo 3** — Verde, commit.
 
 ```bash
 git add backend/app/domain/enums.py backend/tests/unit/domain/test_enums.py
-git commit -m "feat(domain): enums de status, partner, condition, language"
+git commit -m "feat(domain): enums de status, evento e ator"
 ```
 
 ---

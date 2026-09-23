@@ -205,6 +205,22 @@ Fonte da verdade: `docs/sap/metadata.xml`. Payload de referência: `docs/sap/pay
 
 Não existe "FieldControl por organização de vendas" no `$metadata` — a variação por sales org vive na config `required_fields` da plataforma, separada da obrigatoriedade fixa da API.
 
+**Códigos do SAP não são enum.** O `$metadata` não enumera `PartnerFunction`, `ConditionType`, `FormPag`, `LongTextID`, `Language`, `SalesContractType` etc.: são `Edm.String` com `MaxLength` (ex.: `PartnerFunction` 2, `ConditionType` 4, `FormPag` 1, `LongTextID` 4, `Language` 2, `SalesContractType` 4). Duas camadas, como na obrigatoriedade:
+
+- **Domínio (VO):** só formato — `MaxLength` do metadata, uppercase, não vazio quando o campo for API-mandatory. Nenhuma lista de valores no código.
+- **Caso de uso:** valores permitidos vêm de **config por sales org** (mesma estrutura do `required_fields`), validados antes de enfileirar. `enums.py` do domínio só tem conceitos nossos: `ContractStatus`, `TransitionEvent`, `ActorKind`.
+
+Default proposto para **BRF1** (`TODO(decisão #11)` — confirmar com SD/Sysfértil):
+
+| Campo | Valores permitidos | Origem |
+|---|---|---|
+| `PartnerFunction` | `Y1`, `Y2` | `payload_exemplo.json` |
+| `ConditionType` | `PR00`, `ZFRE`, `ZCM1`, `ZCM2` | `payload_exemplo.json` |
+| `FormPag` | `K` | `payload_exemplo.json` |
+| `LongTextID` | `TX01` | `payload_exemplo.json` |
+| `SalesContractType` | `ZCON` | `payload_exemplo.json` (acrescentado; confirmar) |
+| `Language` | `PT` | `payload_exemplo.json` (acrescentado; confirmar) |
+
 **Formato:**
 - **MaxLength:** conforme o metadata. Destaque: `SalesContractItemText` tem no máximo 40.
 - **`RequestedQuantity`:** 3 casas decimais.
@@ -313,6 +329,7 @@ Cobertura mínima de 90% em `domain/` e `application/`. Nas outras camadas não 
 | 8 | Leitura para reconciliação (`API_SALES_CONTRACT_SRV` liberado ao usuário técnico?) | Basis | Automatizar `INCERTO` |
 | 9 | Comportamento de `Edm.Date` ausente no payload (omitir chave vs `null` explícito) | 1º teste DEV | Mapper |
 | 10 | Lista `required_fields` por sales org (default BRF1: `SalesOffice`, `SalesGroup`, `SDDocumentReason`, `IncotermsClassification`, `IncotermsLocation1`, `CustomerPaymentTerms`, `PurchaseOrderByCustomer`, `PedidoSysFertil`; item: `Plant`, `Culture`) | Comercial | Negócio-mandatory |
+| 11 | Valores permitidos de códigos SAP por sales org (default BRF1: `PartnerFunction` `Y1`/`Y2`; `ConditionType` `PR00`/`ZFRE`/`ZCM1`/`ZCM2`; `FormPag` `K`; `LongTextID` `TX01`; `SalesContractType` `ZCON`; `Language` `PT`) | SD/Sysfértil | Validação no caso de uso (§8) |
 
 ## 15. Revisitar quando crescer
 
