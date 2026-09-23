@@ -44,6 +44,9 @@ class ErrorCode(StrEnum):
     MIN_ITEMS = "min_items"
     LENGTH_MISMATCH = "length_mismatch"
     INVALID_WEIGHT = "invalid_weight"
+    MAX_ITEMS = "max_items"
+    DATES_NOT_INCREASING = "dates_not_increasing"
+    INSTALLMENT_BELOW_MINIMUM = "installment_below_minimum"
     DUPLICATE_PARTNER_FUNCTION = "duplicate_partner_function"
     PARTNER_IDENTIFIER_REQUIRED = "partner_identifier_required"
     UNKNOWN_FIELD = "unknown_field"
@@ -73,7 +76,17 @@ MENSAGENS: Final[Mapping[ErrorCode, tuple[str, tuple[str, ...]]]] = MappingProxy
             "campo '{campo}' deve ter {esperado} elemento(s), tem {recebido}",
             ("esperado", "recebido"),
         ),
-        ErrorCode.INVALID_WEIGHT: ("campo '{campo}' deve ser inteiro maior que zero", ()),
+        ErrorCode.INVALID_WEIGHT: ("campo '{campo}' deve ser inteiro entre 1 e {max}", ("max",)),
+        ErrorCode.MAX_ITEMS: ("campo '{campo}' aceita no maximo {max} elemento(s)", ("max",)),
+        ErrorCode.DATES_NOT_INCREASING: (
+            "campo '{campo}' deve ser posterior a data da parcela anterior",
+            (),
+        ),
+        ErrorCode.INSTALLMENT_BELOW_MINIMUM: (
+            "total insuficiente para {parcelas} parcela(s): cada parcela precisa de ao menos "
+            "0.01; aumente o total para ao menos {minimo_total} ou equilibre os pesos",
+            ("minimo_total", "parcelas"),
+        ),
         ErrorCode.DUPLICATE_PARTNER_FUNCTION: (
             "parceiro duplicado para funcao '{funcao}'",
             ("funcao",),

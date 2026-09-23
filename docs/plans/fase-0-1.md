@@ -1106,6 +1106,23 @@ git commit -m "feat(domain): rules de negócio (parceiro único, itens obrigató
 
 ## Tarefa 1.6 — `installments.py` (maior resto + Hypothesis)
 
+> **Implementado em 2026-09-23 com os requisitos do dono do projeto** (substitui o esqueleto abaixo):
+> - `calcular_parcelas(total, pesos, datas) -> tuple[ParcelaCalculada, ...]` (`parcela`,
+>   `porcentagem`, `valor`, `data`). Não devolve `Installment`: moeda e `FormPag` são do caso de
+>   uso, que monta o `to_FormPag` e passa pelo `Contract.criar`. **`to_FormPag` nunca vem do
+>   cliente** (CLAUDE.md, ARCHITECTURE §8); na Fase 1 há um teste de documentação apontando a regra.
+> - Maior resto em aritmética inteira (`divmod`), chave explícita `(-resto, índice)`, independente
+>   para `%` e valor.
+> - Validação acumulada (`DomainValidationError`), paths `total`/`pesos[i]`/`datas[i]`: `total` com a
+>   especificação de `Valor`; N de 1 a 36 (`max_items`); peso inteiro de 1 a 10.000
+>   (`invalid_weight` com `max`); datas estritamente crescentes (`dates_not_increasing`,
+>   `TODO(decisão #12)`).
+> - Mínimo pela **cota exata** (`total ≥ 0.01 × soma/menor peso`): `installment_below_minimum` em
+>   `total` com `{"minimo_total", "parcelas"}`, mínimo exato (regra monotônica). O teto de peso
+>   garante `Porcentagem ≥ 0.0001`.
+> - Hypothesis: soma exata, proximidade (piso ou piso + 1 unidade), monotonicidade nos pesos,
+>   determinismo, forma/mínimo e fronteira do mínimo. Mutação: gate do CI em `installments.py`.
+
 **Arquivos:**
 - Criar: `backend/app/domain/installments.py`, `backend/tests/unit/domain/test_installments.py`
 

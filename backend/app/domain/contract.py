@@ -263,6 +263,11 @@ _VALIDADORES: Final[Mapping[Tipo, Callable[[Campo, object, str, ErrorCollector],
 }
 
 
+def validar_campo(c: Campo, bruto: object, path: str, col: ErrorCollector) -> object:
+    """Valida um valor avulso contra uma especificacao (ex.: ``total`` das parcelas)."""
+    return _VALIDADORES[c.tipo](c, bruto, path, col)
+
+
 def _validar_entidade(
     dados: Mapping[str, object],
     specs: tuple[Campo, ...],

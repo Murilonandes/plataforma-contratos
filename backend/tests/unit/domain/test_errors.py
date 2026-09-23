@@ -107,6 +107,31 @@ def test_field_error_monta_mensagem_em_pt_br_a_partir_do_code() -> None:
             {"funcao": "Y1"},
             "parceiro duplicado para funcao 'Y1'",
         ),
+        (
+            "pesos[3]",
+            ErrorCode.INVALID_WEIGHT,
+            {"max": 10000},
+            "campo 'pesos' deve ser inteiro entre 1 e 10000",
+        ),
+        (
+            "pesos",
+            ErrorCode.MAX_ITEMS,
+            {"max": 36},
+            "campo 'pesos' aceita no maximo 36 elemento(s)",
+        ),
+        (
+            "datas[2]",
+            ErrorCode.DATES_NOT_INCREASING,
+            {},
+            "campo 'datas' deve ser posterior a data da parcela anterior",
+        ),
+        (
+            "total",
+            ErrorCode.INSTALLMENT_BELOW_MINIMUM,
+            {"minimo_total": "0.07", "parcelas": 3},
+            "total insuficiente para 3 parcela(s): cada parcela precisa de ao menos 0.01; "
+            "aumente o total para ao menos 0.07 ou equilibre os pesos",
+        ),
     ],
 )
 def test_mensagens_exatas(
@@ -253,6 +278,9 @@ _PARAMS_EXEMPLO: dict[ErrorCode, dict[str, object]] = {
     ErrorCode.LENGTH_MISMATCH: {"esperado": 3, "recebido": 2},
     ErrorCode.DUPLICATE_PARTNER_FUNCTION: {"funcao": "Y1"},
     ErrorCode.INVALID_TYPE: {"tipo": "texto"},
+    ErrorCode.INVALID_WEIGHT: {"max": 10000},
+    ErrorCode.MAX_ITEMS: {"max": 36},
+    ErrorCode.INSTALLMENT_BELOW_MINIMUM: {"minimo_total": "0.07", "parcelas": 3},
 }
 
 

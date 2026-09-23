@@ -229,11 +229,14 @@ Default proposto para **BRF1** (`TODO(decisão #11)` — confirmar com SD/Sysfé
 - **Datas** são `Edm.Date` (`YYYY-MM-DD`). Data **ausente** = **chave omitida** do payload; **nunca** vira `""` (isso é comportamento só de `Edm.String`). O mapper garante a omissão. `TODO(decisão #9)` — confirmar comportamento no primeiro POST em DEV; se o SAP rejeitar omissão, avaliar `null` explícito.
 
 **Parcelas:**
+- **`to_FormPag` NUNCA vem do cliente.** A entrada da API/caso de uso é `total` + `pesos` + `datas` + `FormPag`; as parcelas são sempre montadas por `calcular_parcelas` (`domain/installments.py`). O schema de entrada (Fase 3) não tem `to_FormPag`.
 - São calculadas pelo servidor a partir de N parcelas e datas base.
+- **Entrada:** `total` segue a especificação de `Valor` (Decimal > 0, 2 casas, até 13 dígitos inteiros); `pesos` tem de 1 a **36** inteiros, cada um entre 1 e **10.000** (comporta pontos-base, ex. 3333 = 33,33%); `datas` do mesmo tamanho, **estritamente crescentes** (`TODO(decisão #12)`).
+- **Mínimo por parcela, pela cota exata:** cada parcela precisa de cota exata ≥ `0.01`, ou seja `total ≥ 0.01 × soma(pesos) / menor peso`. A regra é monotônica, então o erro `installment_below_minimum` informa o `minimo_total` exato e as duas saídas (aumentar o total ou equilibrar os pesos). Com o teto de peso e N ≤ 36, a menor `Porcentagem` fica ≥ ~`0.0003`, nunca abaixo de `0.0001`.
 - `Porcentagem` tem 4 casas e soma exatamente `100.0000`. `Valor` tem 2 casas e soma exatamente o total. O **desempate (resíduo)** segue o método do **maior resto** (Hare / largest remainder), aplicado **de forma independente** para `%` e para valor:
   1. Base = divisão exata `.quantize(unidade, ROUND_DOWN)` por parcela.
   2. Resíduo = quantas unidades faltam para bater a soma-alvo (`100.0000` em `%`, `total` em `BRL`).
-  3. Ordena os índices pela **parte fracionária** da divisão exata em ordem **decrescente**; empate → menor índice primeiro.
+  3. Ordena os índices pela **parte fracionária** da divisão exata em ordem **decrescente**; empate → menor índice primeiro (chave `(-resto, índice)`, em aritmética inteira).
   4. Adiciona uma unidade (`0.0001` em `%`, `0.01` em `BRL`) para os `residuo` primeiros dessa ordem.
   
   Quando todas as parcelas têm o mesmo peso, todos os fracionários empatam e o resíduo cai nas parcelas de **menor índice** — daí o caso comum "primeiras parcelas". Para pesos desiguais (ex.: `[30, 70]`, `[1, 1, 1, 97]`), o algoritmo geral escolhe corretamente.
@@ -330,6 +333,7 @@ Cobertura mínima de 90% em `domain/` e `application/`. Nas outras camadas não 
 | 9 | Comportamento de `Edm.Date` ausente no payload (omitir chave vs `null` explícito) | 1º teste DEV | Mapper |
 | 10 | Lista `required_fields` por sales org (default BRF1: `SalesOffice`, `SalesGroup`, `SDDocumentReason`, `IncotermsClassification`, `IncotermsLocation1`, `CustomerPaymentTerms`, `PurchaseOrderByCustomer`, `PedidoSysFertil`; item: `Plant`, `Culture`) | Comercial | Negócio-mandatory |
 | 11 | Valores permitidos de códigos SAP por sales org (default BRF1: `PartnerFunction` `Y1`/`Y2`; `ConditionType` `PR00`/`ZFRE`/`ZCM1`/`ZCM2`; `FormPag` `K`; `LongTextID` `TX01`; `SalesContractType` `ZCON`; `Language` `PT`) | SD/Sysfértil | Validação no caso de uso (§8) |
+| 12 | Datas base das parcelas precisam ser estritamente crescentes? (hoje o domínio rejeita data igual ou anterior à da parcela anterior) | SD/Comercial | Validação de parcelas (§8) |
 
 ## 15. Revisitar quando crescer
 
