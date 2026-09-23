@@ -35,7 +35,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
-from typing import Final, cast
+from typing import Final
 
 from app.domain.contract import PARCELA, validar_campo
 from app.domain.errors import ErrorCode, ErrorCollector, indice
@@ -66,12 +66,12 @@ def calcular_parcelas(
     total: Decimal, pesos: Sequence[int], datas: Sequence[date]
 ) -> tuple[ParcelaCalculada, ...]:
     col = ErrorCollector()
-    total_ok = cast(Decimal, validar_campo(_TOTAL, total, "total", col))
+    validar_campo(_TOTAL, total, "total", col)
     pesos_ok = _validar_pesos(pesos, col)
     _validar_datas(datas, len(pesos) if pesos_ok else None, col)
     col.levantar_se_houver()  # daqui em diante: total Decimal valido, pesos e datas validos
 
-    centavos = int(total_ok.scaleb(_ESCALA_BRL))
+    centavos = int(total.scaleb(_ESCALA_BRL))  # exato: no maximo 2 casas (validado)
     soma, menor = sum(pesos), min(pesos)
     if centavos * menor < soma:  # cota exata da menor parcela < 0.01
         minimo = -(-soma // menor)  # teto, em centavos
