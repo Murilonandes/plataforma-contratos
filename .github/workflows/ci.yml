@@ -32,7 +32,7 @@ jobs:
           python-version: "3.12"
           working-directory: backend
           enable-cache: true
-          cache-dependency-glob: backend/uv.lock
+          cache-dependency-glob: uv.lock # relativo ao working-directory (backend/)
 
       - run: uv sync --locked
       - run: uv run ruff check .
@@ -62,7 +62,7 @@ jobs:
           python-version: "3.12"
           working-directory: backend
           enable-cache: true
-          cache-dependency-glob: backend/uv.lock
+          cache-dependency-glob: uv.lock # relativo ao working-directory (backend/)
 
       - run: uv sync --locked
       - name: mutmut run
