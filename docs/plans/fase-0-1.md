@@ -1071,6 +1071,17 @@ git commit -m "feat(domain): VOs em dataclass(frozen=True) com field_path nos er
 
 ## Tarefa 1.5 — `rules.py`
 
+> **Implementado em 2026-09-23 no desenho acumulado da 1.4** (substitui o esqueleto abaixo):
+> - `validar_regras(*, parceiros, itens_recebidos) -> tuple[FieldError, ...]`, pura, sem importar
+>   `contract.py`. O `Contract.criar` incorpora o resultado no mesmo `ErrorCollector`: erros de
+>   campo e de regra saem juntos numa única `DomainValidationError`.
+> - `min_items` em `to_Item` (`{"min": 1}`) quando `to_Item` está ausente, `None` ou vazio. Conta
+>   elementos **recebidos** (válidos ou não); `to_Item` que nem é lista só dá `invalid_type`.
+> - `duplicate_partner_function` em `to_Partner[j].PartnerFunction` para toda repetição depois da
+>   primeira, com o índice real do payload (recebe pares `(path, função)`). Função vazia fica de fora
+>   (já é `required`). Comparação exata depois do strip, sem normalizar caixa.
+> - `qty > 0` continua nos VOs (1.4).
+
 **Arquivos:**
 - Criar: `backend/app/domain/rules.py`, `backend/tests/unit/domain/test_rules.py`
 

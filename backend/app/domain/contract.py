@@ -2,7 +2,9 @@
 
 Validacao ACUMULADA: ``Contract.criar(dados)`` valida o contrato inteiro com um
 unico ``ErrorCollector`` e levanta ``DomainValidationError`` UMA vez, no fim.
-Os dataclasses so sao construidos depois, com dados ja validos. O
+As regras inter-campo (``rules.py``) entram no mesmo coletor, depois da
+validacao campo a campo. Os dataclasses so sao construidos depois, com dados
+ja validos. O
 ``__post_init__`` so confere tipos (protege uso programatico; nunca e o
 caminho de validacao de entrada do usuario).
 
@@ -38,6 +40,7 @@ from typing import Any, Final
 
 from app.domain.errors import ErrorCode, ErrorCollector, campo, indice
 from app.domain.money import quantize_brl, quantize_pct, quantize_qty, quantize_rate
+from app.domain.rules import validar_regras
 
 
 class Tipo(Enum):
@@ -299,7 +302,17 @@ def _elementos(
     return resultado
 
 
-# ---- Invariantes de tipo (uso programatico) ----------------------------------
+def _recebidos(dados: Mapping[str, object], navegacao: str) -> int | None:
+    """Quantos elementos vieram (validos ou nao); ``None`` se nem e lista."""
+    bruto = dados.get(navegacao)
+    if bruto is None:
+        return 0
+    if isinstance(bruto, list | tuple):
+        return len(bruto)
+    return None
+
+
+# ---- Invariantes de tipo (uso programatico)----------------------------------
 
 
 def _tipo_ok(c: Campo, valor: object) -> bool:
@@ -462,11 +475,13 @@ class Contract:
             itens.append(item)
 
         parceiros: list[dict[str, Any]] = []
+        funcoes: list[tuple[str, str]] = []
         for path, el in _elementos(dados, "to_Partner", col, ""):
             parceiro = _validar_entidade(el, PARCEIRO, col, path)
             if not any(parceiro[k] for k in _IDENTIFICADORES_PARCEIRO):
                 col.adicionar(path, ErrorCode.PARTNER_IDENTIFIER_REQUIRED)
             parceiros.append(parceiro)
+            funcoes.append((path, parceiro["partner_function"]))
 
         precos = [
             _validar_entidade(el, PRECO, col, p)
@@ -480,6 +495,10 @@ class Contract:
             _validar_entidade(el, TEXTO, col, p) for p, el in _elementos(dados, "to_Text", col, "")
         ]
 
+        col.incorporar(
+            validar_regras(parceiros=funcoes, itens_recebidos=_recebidos(dados, "to_Item")),
+            prefixo="",
+        )
         col.levantar_se_houver()
 
         return cls(
