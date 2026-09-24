@@ -198,6 +198,8 @@ A regra de dependência é `domain` ← `application` ← `infrastructure`/`api`
 - **`contract_events`**: audit trail append-only das transições de estado.
 - **`outbox_jobs`**: `id`, `contract_id`, `kind` (`CREATE`, depois `CHANGE_STATUS`), `run_after`, `attempts`, `locked_until`, `last_error`. O worker usa `SELECT … FOR UPDATE SKIP LOCKED`.
 
+Tudo no schema **`contratos`** (nada no `public`), migrado por Alembic (`backend/migrations/`). Estado, evento e ator como `TEXT` + `CHECK` (nunca `ENUM` do Postgres); todo instante `TIMESTAMPTZ`, com valor vindo do `Clock` da aplicação; `contract_snapshots` (snapshot congelado na submissão) e `contract_events` só aceitam `INSERT`, e `contract_submissions` aceita um único `UPDATE` (a resposta), garantidos por trigger. `request_body` em `BYTEA` com `CHECK` do sha256 no próprio banco.
+
 Dinheiro e quantidade são `NUMERIC` no banco e `Decimal` no Python. **Proibido float.**
 
 ## 7. Integração SAP (detalhes que importam)

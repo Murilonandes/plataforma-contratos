@@ -46,6 +46,8 @@ Esta plataforma cria contratos de venda (ZCON) no SAP S/4HANA pelo serviço ODat
 ## Comandos
 Preencha na Fase 0 e mantenha atualizado:
 - backend (em `backend/`): `uv run pytest`, `uv run ruff check .`, `uv run ruff format --check .`, `uv run mypy app tests/unit/application`, `uv run lint-imports`
+- integracao (em `backend/`, PostgreSQL 16 real): `uv run pytest -m integration tests/integration` (testcontainers com Docker; ou `TEST_DATABASE_URL=postgresql+asyncpg://.../postgres` apontando para um servidor local)
+- migracoes (em `backend/`): `uv run alembic upgrade head` / `uv run alembic check` (URL do `DATABASE_URL`)
 - gate de cobertura (em `backend/`): `uv run pytest --cov=app.domain --cov=app.application --cov-report=term-missing` e depois `uv run python scripts/coverage_gate.py`
 - frontend (em `frontend/`): `pnpm test`, `pnpm lint`, `pnpm typecheck`, `pnpm format:check`, `pnpm build` (`pnpm e2e` entra na Fase 5)
 - local: `docker compose -f infra/compose.dev.yml --env-file infra/.env up` (copiar `infra/.env.example`; `SAP_PRD_HOSTS` é obrigatório)

@@ -71,6 +71,29 @@ jobs:
       - name: gate de mutacao (zero sobreviventes fora dos equivalentes justificados)
         run: uv run python scripts/mutation_gate.py
 
+  integration:
+    # PostgreSQL 16 real (testcontainers, Docker do runner). Check obrigatorio (D10):
+    # migracao upgrade -> downgrade -> upgrade + alembic check, schema, concorrencia
+    # SKIP LOCKED, fencing e (a partir da 2.4) a bateria de contrato das portas.
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          version: "0.12.5"
+          python-version: "3.12"
+          working-directory: backend
+          enable-cache: true
+          cache-dependency-glob: uv.lock # relativo ao working-directory (backend/)
+
+      - run: uv sync --locked
+      - name: pytest de integracao (PostgreSQL 16)
+        run: uv run pytest -m integration tests/integration
+
   frontend:
     runs-on: ubuntu-latest
     defaults:

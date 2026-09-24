@@ -36,6 +36,7 @@ dev = [
     "mypy>=1.11,<2.0",
     "import-linter>=2.0,<3.0",
     "mutmut>=3.8,<4.0",
+    "testcontainers[postgres]>=4.8,<5.0",
 ]
 
 [build-system]
@@ -76,6 +77,9 @@ select = [
     "S105",  # "password" em variavel de teste (fake)
     "S106",  # "password" em argumento de teste (fake)
     "S107",  # "password" em default de teste (fake)
+]
+"migrations/versions/*.py" = [
+    "E501",  # gerado pelo autogenerate e congelado: lista de valores dos enums no CHECK
 ]
 
 # ---- Mypy ------------------------------------------------------------------
@@ -137,7 +141,10 @@ layers = [
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
-addopts = "--strict-markers --strict-config -ra"
+addopts = "--strict-markers --strict-config -ra -m 'not integration'"
+markers = [
+    "integration: precisa de PostgreSQL 16 real (TEST_DATABASE_URL ou testcontainers); job integration do CI",
+]
 testpaths = ["tests"]
 filterwarnings = ["error"]
 
