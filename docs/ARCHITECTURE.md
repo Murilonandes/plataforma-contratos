@@ -114,7 +114,9 @@ Enquanto o worker está vivo, o evento é escolhido pelo **tipo da exceção `ht
 
 | Situação                          | Exceção `httpx`                                                     | Evento                     |
 |---                                |---                                                                  |---                         |
-| CSRF fetch falhou                 | qualquer erro no `GET` prévio para pegar o token                    | `FALHA_ANTES_POST`         |
+| CSRF fetch: rede ou `5xx`         | `httpx.ConnectError`, `httpx.ConnectTimeout`, ou status `5xx` no `GET` do token | `FALHA_ANTES_POST` (retry com backoff) |
+| CSRF fetch: `401`/`403`           | status `401` ou `403` no `GET` do token                             | `SAP_4XX_TECNICO`, **sem retry**, com alerta: repetir login pode bloquear o usuário técnico no SAP |
+| CSRF fetch: outro erro            | outro status ou outra exceção no `GET` do token                     | `SAP_4XX_TECNICO` (outro `4xx`) ou `FALHA_NAO_CLASSIFICADA_ANTES_ENVIO`, sem retry |
 | conexão não estabeleceu           | `httpx.ConnectError`, `httpx.ConnectTimeout`                        | `FALHA_ANTES_POST`         |
 | envio do body falhou              | `httpx.WriteError`, `httpx.WriteTimeout`                            | `CONEXAO_CAIDA_APOS_POST` (conservador — write parcial pode ter chegado) |
 | resposta não veio (timeout)       | `httpx.ReadTimeout`                                                 | `TIMEOUT_APOS_POST`        |
@@ -129,6 +131,7 @@ Enquanto o worker está vivo, o evento é escolhido pelo **tipo da exceção `ht
 4. Status ∈ `{400, 409, 422}` → `SAP_4XX_NEGOCIO`.
 5. Qualquer outro `4xx` **com** `error.details` do RAP → `SAP_4XX_NEGOCIO`.
 6. Qualquer outro `4xx` **sem** `error.details` → `SAP_4XX_TECNICO` (default conservador; admin avalia).
+7. `3xx` depois do POST → `FALHA_APOS_RESPOSTA` → `INCERTO` (conservador: o client não segue redirect, `follow_redirects=False`, e o POST pode ter sido processado).
 
 **Caso especial CSRF 403.** Se a resposta for `403` com header `x-csrf-token: Required`, o SAP rejeitou **sem processar** — refetch do token + reenvio do POST **uma vez** dentro da mesma tentativa. Se o segundo POST falhar por qualquer razão, aí sim classifica pela precedência acima. Se falhar por CSRF de novo, `SAP_4XX_TECNICO`.
 

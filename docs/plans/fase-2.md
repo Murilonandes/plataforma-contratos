@@ -1,9 +1,7 @@
 # Plano — Fase 2 (Adapter SAP + worker + outbox)
 
-> Status: **revisão 4**. Aprovadas: D1, D2, D6′, D8, D11, D12 (com a divisão pelo marcador), D13,
-> D14, D15 e o default `INCERTO`. **Aguardando a revisão do dono do projeto:** D3, D4, D5, D7, D9,
-> D10 e a lista de arquivos. Nenhum código da Fase 2 começa antes disso (a 2.1b já foi feita,
-> a pedido, por ser só domínio).
+> Status: **revisão 5, aprovada** (com os ajustes do dono do projeto em D3, D4, D5, D7 e D10 e nas
+> tarefas 2.1, 2.3, 2.5, 2.7, 2.10 e 2.12). Execução a partir da 2.1; a 2.0 espera o `metadata.xml`.
 > Fonte da verdade do design: `docs/ARCHITECTURE.md` (§4 máquina de estados e classificação de
 > falhas, §6 modelo de dados, §7 integração SAP, §10 observabilidade). Regras invioláveis: `CLAUDE.md`.
 
@@ -42,19 +40,19 @@ Tudo auditado em `contract_events` e `contract_submissions`, e comprovado num sm
 |---|---|---|
 | D1 ✅ | Onde fica o caso de uso que coloca o contrato na fila (`submit_contract`: `RASCUNHO`/`ERRO_NEGOCIO` → `NA_FILA` + job, na mesma transação) | **Nesta fase**, na camada de aplicação e sem rota: é o produtor do outbox e o smoke precisa dele. A rota HTTP vem na Fase 3. |
 | D2 ✅ | Fronteiras de transação do worker | Três commits por tentativa: (1) pega o job com `FOR UPDATE SKIP LOCKED`, grava `locked_until` e faz `WORKER_PEGOU` (→ `ENVIANDO`); (2) grava a linha em `contract_submissions` (`request_sent_at`, `request_body`); (3) depois da resposta, grava o resultado, a transição, o evento e o estado do job. O fetch de CSRF acontece **entre 1 e 2**, então falha nele não deixa marcador e é `FALHA_ANTES_POST`. |
-| D3 | Retry antes do POST | `SAP_MAX_TENTATIVAS` (default 5) com backoff exponencial em `run_after` (30 s × 2^n, teto de 30 min). Ao atingir o teto: `FALHA_ANTES_POST_ESGOTOU`. |
-| D4 | Tempo de lock | `locked_until = agora + SAP_LOCK_TIMEOUT_S` (default 300 s), que precisa ser **maior** que o timeout de leitura (90 s) mais a margem. Um guard no settings rejeita configuração menor. |
-| D5 | Relógio | Porta `Clock` na aplicação: `occurred_at`, `request_sent_at`, `run_after` e `locked_until` vêm dela, nunca de `datetime.now()` espalhado. Os testes usam um relógio fixo. |
+| D3 ✅ | Retry antes do POST | `SAP_MAX_TENTATIVAS` (default 5) com backoff exponencial em `run_after` (30 s × 2^n, teto de 30 min) e **jitter de ±20%**. Ao atingir o teto: `FALHA_ANTES_POST_ESGOTOU`. Retry **só** para erro de rede (`Connect*`) e `5xx` no CSRF. **`401`/`403` no fetch do CSRF não repete:** vai direto para `ERRO_TECNICO` (`SAP_4XX_TECNICO`, `detalhe` `fase=csrf`) com alerta, porque repetir login pode bloquear o usuário técnico no SAP. A linha nova está na tabela de classificação da §4 e tem teste. |
+| D4 ✅ | Tempo de lock e fencing | **Prazo total por tentativa** (`asyncio.timeout`) = soma do pior caso: CSRF + POST + refetch do CSRF + POST, cada um com connect + read, ou seja 4 × (5 + 90) = 380 s com os defaults. `SAP_LOCK_TIMEOUT_S` (default 600) precisa ser **maior que esse prazo + 60 s**, e o guard do settings faz a conta. **Fencing:** o job ganha `lock_token` (uuid novo a cada pega). O commit do resultado (commit 3) é `UPDATE … WHERE lock_token = :meu`; se o lock foi recuperado por outro worker, não grava nada e loga `WARNING`, e quem decide é o recover (`LOCK_EXPIRADO_COM_ENVIO` → `INCERTO`). Há teste de integração desse caso. |
+| D5 ✅ | Relógio | Porta `Clock` na aplicação: `occurred_at`, `request_sent_at`, `run_after` e `locked_until` vêm dela, nunca de `datetime.now()` espalhado. Toda comparação de tempo nas queries (`locked_until`, `run_after`) usa o horário do `Clock` **passado como parâmetro**, nunca `now()` do banco misturado com o relógio da aplicação. Os testes usam um relógio fixo. |
 | D6′ | Snapshot na submissão (substitui a D6 rejeitada) | Na submissão, o contrato é **congelado completo**: o `Contract` do domínio **já com as parcelas calculadas**, serializado em forma canônica (decimal como string de escala fixa), mais a versão do algoritmo de parcelas (`ALGORITMO_PARCELAS`, ex.: `maior-resto/1`) e a entrada que as gerou (`total`, `pesos`, `datas`, `FormPag`). O snapshot fica em tabela **append-only** `contract_snapshots`, uma linha por submissão; o job e cada `contract_submissions` apontam para o `snapshot_id`. O worker envia **exatamente** esse snapshot: `Contract.criar(snapshot)` → mapper → `to_json`. Recalcular as parcelas serve **só como conferência**; se divergir, o POST não é feito, e o contrato vai para `ERRO_TECNICO` com alerta (ver D11). `LIBERAR_REENVIO` reusa o **mesmo** `snapshot_id` e nunca recalcula. Nova submissão depois de `ERRO_NEGOCIO` (vendedor corrigiu) gera snapshot novo. |
-| D7 | O que o worker grava em `request_body` | Os bytes exatos de `to_json(payload)`, parseados para JSONB. Headers **não** são gravados, então o `Authorization` nunca chega ao banco. |
+| D7 ✅ | O que o worker grava em `request_body` | `request_body` **`BYTEA`** com os bytes exatos enviados, mais `request_sha256`. `request_json` `JSONB` opcional, só como cópia para consulta. Headers **não** são gravados, então o `Authorization` nunca chega ao banco. O teste de reenvio compara os bytes **e** o hash. |
 | D8 ✅ | Classificação de resultado | Módulo **puro** `infrastructure/sap/classificacao.py`: exceção do httpx ou (status, headers, corpo) → `TransitionEvent` + detalhe estruturado, seguindo as duas tabelas da §4. Teste exaustivo lê as tabelas do `.md`, como o `test_states`. **Entra no gate de mutação**, porque decide quando não reenviar. |
-| D9 | Número do contrato na resposta 201 | Lido de `SalesContract` e normalizado pela própria `transition` (VBELN canônico). Qualquer falha **no nosso processamento** de um 201 vai para `INCERTO` (D12), nunca para `CRIADO`, `ERRO_TECNICO` ou retry (`TODO(decisão #3)`). |
+| D9 ✅ | Número do contrato na resposta 201 | Lido de `SalesContract` e normalizado pela própria `transition` (VBELN canônico). Qualquer falha **no nosso processamento** de um 201 vai para `INCERTO` (D12), nunca para `CRIADO`, `ERRO_TECNICO` ou retry (`TODO(decisão #3)`). |
 | D11 ✅ | Divergência na conferência do snapshot (evento novo na §4) | Novo evento **`CONFERENCIA_DIVERGENTE`**: `ENVIANDO` → `ERRO_TECNICO`, ator `worker`, sem justificativa, com `detalhe` (parcela, campo). A conferência roda **depois** de `WORKER_PEGOU` e **antes** do CSRF e do marcador, então é garantido que nada foi enviado. Consequência: `LIBERAR_REENVIO` reenvia o mesmo snapshot, e a conferência diverge de novo; a saída é `CANCELAR` e resubmeter. **Alerta:** divergência indica bug no cálculo, então gera métrica + log `ERROR` (D15); a saída documentada no `docs/RUNBOOK.md` é cancelar e resubmeter. **Versão do algoritmo diferente da atual:** envia **sem** conferir, com `conferencia=pulada_versao` no `detalhe` do `WORKER_PEGOU` e log `WARNING` (aprovado). |
 | D12 ✅ | Falha no nosso processamento depois de ler o status (evento novo na §4) | Novo evento **`FALHA_APOS_RESPOSTA`**: `ENVIANDO` → `INCERTO`, ator `worker`. Vale para qualquer exceção depois de ler o status: 201 com JSON inválido, `SalesContract` ausente ou fora do formato, erro no parser ou na transição. **Nunca** `ERRO_TECNICO` nem retry. O `response_body` é gravado **cru**: a coluna passa a ser `TEXT` (limite de 1 MiB, truncamento registrado), mais `response_json` `JSONB` só quando o corpo for JSON válido, porque JSON inválido não cabe em `JSONB`. A exceção não listada é **dividida pelo marcador**: **`FALHA_NAO_CLASSIFICADA_ANTES_ENVIO`** (sem `request_sent_at` commitado) → `ERRO_TECNICO`, e **`FALHA_NAO_CLASSIFICADA_APOS_ENVIO`** (com marcador) → `INCERTO`. A matriz passa de 21 para **25** transições e de 15 para **19** eventos (feito na 2.1b). |
 | D13 ✅ | Teste de caos | Exceção injetada em **cada ponto** entre o commit do marcador e o commit do resultado: antes do POST, durante o POST, depois de ler o status, no parse, na transição, na gravação da submissão, do evento e do job, e no commit final. Nos testes com fakes, o ponto é um gancho enumerado. Na integração, o processo é derrubado de verdade e o lock é recuperado. Em **nenhum** caso o contrato volta para `NA_FILA` nem o job é reagendado: o destino é `INCERTO`, direto (`FALHA_APOS_RESPOSTA`/`FALHA_NAO_CLASSIFICADA`) ou via `LOCK_EXPIRADO_COM_ENVIO`. |
 | D14 ✅ | `contract_snapshots` imutável | `REVOKE UPDATE, DELETE` no papel da aplicação, como em `contract_events`. O teste de integração tenta atualizar e espera erro. |
 | D15 ✅ | Métricas e alertas atrás de uma porta | Porta **`Metrics`** em `application/ports.py` com `incrementar(evento: str, **labels)`. **Adapter da Fase 2:** log JSON nível `ERROR` com o campo fixo **`alert`** (`conferencia_divergente`, `contrato_incerto`, `erro_tecnico`), o que já permite alerta no Zabbix por padrão de log. **Fase 5:** adapter Prometheus atrás da mesma porta, sem mexer no worker nem nos casos de uso. **Teste:** cada transição para `INCERTO` ou `ERRO_TECNICO` e cada `CONFERENCIA_DIVERGENTE` chamam a porta **exatamente uma vez** (fake que conta as chamadas; nenhuma outra transição chama). O adapter de log tem teste próprio: JSON, nível `ERROR`, `alert` com um dos três valores, labels sem dado sensível. |
-| D10 | Testes de integração | `testcontainers[postgres]` como dependência de dev, com marcador `integration` fora do `pytest` padrão e um job `integration` novo no CI. O caso central é a concorrência de dois workers com `SKIP LOCKED`. |
+| D10 ✅ | Testes de integração | `testcontainers[postgres]` como dependência de dev, com marcador `integration` fora do `pytest` padrão e um job `integration` novo no CI, **check obrigatório** do branch. Os casos centrais são a concorrência de dois workers com `SKIP LOCKED` e o **fencing do D4**. |
 
 ## Ordem de execução
 
@@ -76,14 +74,23 @@ TDD em domínio e aplicação. Commits pequenos e push na `develop` a cada taref
 ## Tarefa 2.1 — Settings da Fase 2
 
 Novas configs, validadas no startup e cobertas por teste:
-- `DATABASE_URL`: `SecretStr`, lido de arquivo ou Docker secret. Nunca é logado.
+- **Settings por processo:** o secret do SAP vai **só para o worker**; a API recebe só o do banco.
+  - `ApiSettings`: `APP_ENV`, `LOG_LEVEL` e `DATABASE_URL`.
+  - `WorkerSettings`: o mesmo mais toda a config SAP (guard DEV × PRD, credenciais) e a do worker.
+  - A regra "em qas/prd, credencial só vem da fonte de arquivo efetiva" passa a valer para cada
+    credencial da classe: `database_url` nas duas, `sap_user`/`sap_pass` só no worker.
+- `DATABASE_URL`: `SecretStr`, `postgresql+asyncpg://`. Nunca é logado.
 - `SAP_DECIMAL_AS_STRING`: default `true` (`TODO(decisão #4)`).
-- `SAP_MAX_TENTATIVAS` (5) e `SAP_LOCK_TIMEOUT_S` (300), com o guard de ser maior que
-  `sap_timeout_read_s` + 60.
-- `WORKER_POLL_INTERVAL_S` (2) e `WORKER_BATCH` (1).
+- `SAP_MAX_TENTATIVAS` (5) e `SAP_LOCK_TIMEOUT_S` (600).
+  - O guard calcula o prazo por tentativa, 4 × (connect + read), e exige lock > prazo + 60 (D4).
+- `WORKER_POLL_INTERVAL_S` (2).
 
-**Arquivos:** △ `backend/app/settings.py`, △ `backend/tests/unit/test_settings*.py`,
-△ `infra/.env.example`, △ `infra/compose.dev.yml` (secret do banco no `api` e no `worker`)
+**Arquivos:** △ `backend/app/settings.py`, △ `backend/app/api/deps.py`, △ `backend/app/main.py`,
+△ `backend/app/entrypoints/worker.py` (carrega `WorkerSettings`, fail-closed), △ `backend/tests/conftest.py`,
+△ `backend/tests/unit/test_settings*.py`, △ `backend/tests/unit/test_health.py`,
+△ `backend/tests/unit/test_entrypoints.py`, △ `infra/.env.example`,
+△ `infra/compose.dev.yml` (API só com o banco; worker com banco e SAP),
+△ `.github/workflows/ci.yml` (smoke do job `images` com a config nova)
 
 ## Tarefa 2.1b — Matriz da §4 com os eventos novos (D11, D12) — ✅ FEITA
 
@@ -132,8 +139,11 @@ Mais os tipos de resultado (`RespostaSap`, `MensagemSap`).
   - `UNIQUE (idempotency_key)`;
   - `UNIQUE (pedido_sysfertil) WHERE pedido_sysfertil IS NOT NULL AND status NOT IN ('ERRO_NEGOCIO','CANCELADO')`;
   - FK de `contract_events`, `contract_submissions` e `outbox_jobs` para `contracts`.
-- **Índice** de `outbox_jobs (run_after) WHERE locked_until IS NULL OR locked_until < now()`, com
-  forma final a ajustar no `EXPLAIN`.
+- **Índice** em `outbox_jobs (run_after)` só para jobs pendentes (`WHERE concluido_em IS NULL`).
+  O predicado não pode usar `now()`, porque o Postgres exige função `IMMUTABLE` em índice parcial;
+  `locked_until` é comparado na query, com o horário do `Clock` como parâmetro (D5).
+- `outbox_jobs.lock_token UUID` (fencing, D4); `contract_submissions.request_body BYTEA`,
+  `request_sha256` e `request_json JSONB` opcional (D7).
 - **Append-only:** `contract_events` e `contract_snapshots` recebem `REVOKE UPDATE, DELETE` no
   papel da aplicação (D14).
 - **Testes:** `alembic upgrade head` → `downgrade base` → `upgrade head` no testcontainers.
@@ -157,6 +167,9 @@ Mais os tipos de resultado (`RespostaSap`, `MensagemSap`).
 - dois workers concorrentes nunca pegam o mesmo job;
 - job com lock expirado volta a ser elegível;
 - conflito de `version` levanta erro;
+- **fencing (D4):** o worker A perde o lock por expiração, o worker B recupera
+  (`LOCK_EXPIRADO_COM_ENVIO` → `INCERTO`), e o commit 3 de A não grava nada (`WHERE lock_token`)
+  e loga `WARNING`;
 - a unique parcial de `pedido_sysfertil` barra duplicidade e aceita após `ERRO_NEGOCIO`/`CANCELADO`;
 - decimais fazem round-trip exato.
 
@@ -166,8 +179,10 @@ Mais os tipos de resultado (`RespostaSap`, `MensagemSap`).
 
 ## Tarefa 2.5 — Client SAP (httpx) com CSRF e log allowlist
 
-- **Sessão:** `httpx.AsyncClient` com Basic Auth lido do secret, `saml2=disabled`, `sap-client` e
-  timeouts connect 5 s / read 90 s.
+- **Sessão:** `httpx.AsyncClient` com Basic Auth lido do secret, `saml2=disabled`, `sap-client`,
+  timeouts connect 5 s / read 90 s e **`follow_redirects=False` explícito**, com teste.
+- **Prazo total** da tentativa com `asyncio.timeout` (D4); estourar o prazo depois do marcador
+  segue a classificação conservadora.
 - **CSRF:** `GET {base}` com `x-csrf-token: Fetch`, na mesma sessão e com os mesmos cookies. O token
   fica em cache.
 - **POST:**
@@ -205,6 +220,9 @@ Mais os tipos de resultado (`RespostaSap`, `MensagemSap`).
 
 - Função pura: resultado do POST (exceção httpx **ou** status + headers + corpo) → `TransitionEvent`
   + detalhe estruturado (`error_class`, `status`).
+- **CSRF (D3):** rede (`Connect*`) ou `5xx` → `FALHA_ANTES_POST` (retry); `401`/`403` →
+  `SAP_4XX_TECNICO` sem retry, com alerta.
+- **`3xx` depois do POST** → `FALHA_APOS_RESPOSTA` → `INCERTO` (linha 7 da §4).
 - Precedência exata da §4:
   1. 5xx;
   2. 403 CSRF;
@@ -291,20 +309,22 @@ Mais os tipos de resultado (`RespostaSap`, `MensagemSap`).
 **Arquivos:** △ `backend/app/entrypoints/worker.py`, △ `backend/tests/unit/test_entrypoints.py`,
 ✱ `backend/tests/integration/test_worker.py`, ✱ `backend/tests/integration/test_caos.py`
 
-## Tarefa 2.10 — Readiness
+## Tarefa 2.10 — Readiness e saúde do SAP
 
-- `/health/ready` ganha dois checks:
-  - `db` (`SELECT 1`);
-  - `sap_csrf`: o último fetch de CSRF do worker deu certo há menos de N minutos, lido de uma linha
-    de heartbeat no banco, porque a API não chama o SAP.
-- Os dois checks entram pelo mecanismo existente de `readiness_checks`.
+- **`/health/ready` da API não depende do SAP:** só o check `db` (`SELECT 1`), pelo mecanismo
+  existente de `readiness_checks`.
+- **`/health/sap`**, informativo e fora do ready: idade do último fetch de CSRF bem-sucedido do
+  worker, lido de uma linha de heartbeat no banco (a API não chama o SAP). Sempre responde `200`
+  com `ok`/`atrasado`, sem derrubar o roteamento do Traefik.
+- **Alerta:** heartbeat atrasado chama `Metrics.incrementar` (D15), e o Zabbix alerta pelo log.
 
-**Arquivos:** △ `backend/app/main.py`, △ `backend/app/api/health.py` (se necessário),
+**Arquivos:** △ `backend/app/main.py`, △ `backend/app/api/health.py`,
 ✱ `backend/app/infrastructure/db/heartbeat.py`, △ `backend/tests/unit/test_health.py`
 
 ## Tarefa 2.11 — CI
 
-- Job `integration`: testcontainers com o Docker do runner, `pytest -m integration`.
+- Job `integration`: testcontainers com o Docker do runner, `pytest -m integration`. É **check
+  obrigatório** do branch (D10); a proteção do branch é configurada pelo dono do projeto no GitHub.
 - `[tool.mutmut]`: `only_mutate` ganha `infrastructure/sap/classificacao.py` e os três casos de uso.
   A seleção de testes ganha `tests/unit/application/`.
 - O gate de cobertura continua em `domain` + `application` ≥ 90%.
@@ -317,7 +337,9 @@ Mais os tipos de resultado (`RespostaSap`, `MensagemSap`).
   - monta o contrato do `payload_exemplo` pelo caminho completo (`submit_contract` →
     `process_outbox_job`) contra o SAP **DEV**;
   - o guard DEV × PRD do settings fica ativo;
-  - antes do POST, pede confirmação digitada.
+  - antes do POST, pede confirmação digitada;
+  - gera `PedidoSysFertil` e `PurchaseOrderByCustomer` **únicos por execução**, com prefixo
+    `SMOKE-<timestamp>`, para não bater na unique nem ser confundido com dado real.
 - Com as respostas reais:
   - grava fixtures anonimizadas em `tests/contract/fixtures/`;
   - fecha as decisões **#3** (formato 201/erros), **#4** (decimal string × número), **#9** (data
