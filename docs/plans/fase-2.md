@@ -1,8 +1,8 @@
 # Plano — Fase 2 (Adapter SAP + worker + outbox)
 
-> Status: **revisão 3**. Aprovadas: D1, D2, D6′, D8, D11, D12 (com a divisão pelo marcador), D13,
-> D14 e o default `INCERTO`. **Aguardando a revisão do dono do projeto:** D3, D4, D5, D7, D9, D10,
-> D15 e a lista de arquivos. Nenhum código da Fase 2 começa antes disso (a 2.1b já foi feita,
+> Status: **revisão 4**. Aprovadas: D1, D2, D6′, D8, D11, D12 (com a divisão pelo marcador), D13,
+> D14, D15 e o default `INCERTO`. **Aguardando a revisão do dono do projeto:** D3, D4, D5, D7, D9,
+> D10 e a lista de arquivos. Nenhum código da Fase 2 começa antes disso (a 2.1b já foi feita,
 > a pedido, por ser só domínio).
 > Fonte da verdade do design: `docs/ARCHITECTURE.md` (§4 máquina de estados e classificação de
 > falhas, §6 modelo de dados, §7 integração SAP, §10 observabilidade). Regras invioláveis: `CLAUDE.md`.
@@ -53,7 +53,7 @@ Tudo auditado em `contract_events` e `contract_submissions`, e comprovado num sm
 | D12 ✅ | Falha no nosso processamento depois de ler o status (evento novo na §4) | Novo evento **`FALHA_APOS_RESPOSTA`**: `ENVIANDO` → `INCERTO`, ator `worker`. Vale para qualquer exceção depois de ler o status: 201 com JSON inválido, `SalesContract` ausente ou fora do formato, erro no parser ou na transição. **Nunca** `ERRO_TECNICO` nem retry. O `response_body` é gravado **cru**: a coluna passa a ser `TEXT` (limite de 1 MiB, truncamento registrado), mais `response_json` `JSONB` só quando o corpo for JSON válido, porque JSON inválido não cabe em `JSONB`. A exceção não listada é **dividida pelo marcador**: **`FALHA_NAO_CLASSIFICADA_ANTES_ENVIO`** (sem `request_sent_at` commitado) → `ERRO_TECNICO`, e **`FALHA_NAO_CLASSIFICADA_APOS_ENVIO`** (com marcador) → `INCERTO`. A matriz passa de 21 para **25** transições e de 15 para **19** eventos (feito na 2.1b). |
 | D13 ✅ | Teste de caos | Exceção injetada em **cada ponto** entre o commit do marcador e o commit do resultado: antes do POST, durante o POST, depois de ler o status, no parse, na transição, na gravação da submissão, do evento e do job, e no commit final. Nos testes com fakes, o ponto é um gancho enumerado. Na integração, o processo é derrubado de verdade e o lock é recuperado. Em **nenhum** caso o contrato volta para `NA_FILA` nem o job é reagendado: o destino é `INCERTO`, direto (`FALHA_APOS_RESPOSTA`/`FALHA_NAO_CLASSIFICADA`) ou via `LOCK_EXPIRADO_COM_ENVIO`. |
 | D14 ✅ | `contract_snapshots` imutável | `REVOKE UPDATE, DELETE` no papel da aplicação, como em `contract_events`. O teste de integração tenta atualizar e espera erro. |
-| D15 | Alerta de `CONFERENCIA_DIVERGENTE` (métrica) | As métricas Prometheus são da Fase 5. Proposta: porta `Alertas` na aplicação, com `conferencia_divergente(contract_id, detalhe)`. Na Fase 2 ela é implementada com log `ERROR` (evento `alerta_conferencia_divergente`) e um contador `contracts_conferencia_divergente_total` via `prometheus_client`, que é dependência nova, ainda sem endpoint `/metrics`. Na Fase 5, o `/metrics` passa a expor o contador e entra a regra de alerta. |
+| D15 ✅ | Métricas e alertas atrás de uma porta | Porta **`Metrics`** em `application/ports.py` com `incrementar(evento: str, **labels)`. **Adapter da Fase 2:** log JSON nível `ERROR` com o campo fixo **`alert`** (`conferencia_divergente`, `contrato_incerto`, `erro_tecnico`), o que já permite alerta no Zabbix por padrão de log. **Fase 5:** adapter Prometheus atrás da mesma porta, sem mexer no worker nem nos casos de uso. **Teste:** cada transição para `INCERTO` ou `ERRO_TECNICO` e cada `CONFERENCIA_DIVERGENTE` chamam a porta **exatamente uma vez** (fake que conta as chamadas; nenhuma outra transição chama). O adapter de log tem teste próprio: JSON, nível `ERROR`, `alert` com um dos três valores, labels sem dado sensível. |
 | D10 | Testes de integração | `testcontainers[postgres]` como dependência de dev, com marcador `integration` fora do `pytest` padrão e um job `integration` novo no CI. O caso central é a concorrência de dois workers com `SKIP LOCKED`. |
 
 ## Ordem de execução
@@ -112,11 +112,14 @@ Feita a pedido do dono do projeto, antes da aprovação do resto do plano, por s
 - `EventRepo` (`anexar`)
 - `SapContractGateway` (`fetch_csrf`, `criar_contrato(bytes) -> RespostaSap`, que levanta a
   exceção do httpx sem reinterpretar)
+- `Metrics` (`incrementar(evento: str, **labels)`, D15)
 
 Mais os tipos de resultado (`RespostaSap`, `MensagemSap`).
 
 **Arquivos:** ✱ `backend/app/application/ports.py`, ✱ `backend/tests/unit/application/__init__.py`,
-✱ `backend/tests/unit/application/fakes.py` (fakes em memória das portas, usados nos testes de caso de uso)
+✱ `backend/tests/unit/application/fakes.py` (fakes em memória das portas, usados nos testes de caso de uso),
+✱ `backend/app/observability/metricas.py` (adapter de log da porta `Metrics`, D15),
+✱ `backend/tests/unit/test_metricas.py`
 
 ## Tarefa 2.3 — Modelo relacional + migração Alembic
 
@@ -240,7 +243,7 @@ Mais os tipos de resultado (`RespostaSap`, `MensagemSap`).
   - pega o job e aplica `WORKER_PEGOU`;
   - carrega o snapshot e **confere** as parcelas (recalcula com a mesma versão e compara); se
     divergir, `CONFERENCIA_DIVERGENTE` → `ERRO_TECNICO`, sem CSRF nem POST, com
-    `Alertas.conferencia_divergente` (D11, D15); com versão diferente, pula a conferência
+    `Metrics.incrementar("conferencia_divergente", ...)` (D11, D15); com versão diferente, pula a conferência
     (`conferencia=pulada_versao` + `WARNING`);
   - faz o fetch de CSRF (falha → `FALHA_ANTES_POST` ou `_ESGOTOU` conforme `attempts`);
   - grava a submissão (commit);
@@ -253,6 +256,10 @@ Mais os tipos de resultado (`RespostaSap`, `MensagemSap`).
 - **Testes:** cada linha da classificação ponta a ponta com fakes; nenhum caminho com body enviado
   reagenda o job; toda transição grava evento; toda tentativa de POST grava submissão; o relógio vem
   da porta.
+- **Métricas (D15):** toda transição para `INCERTO` ou `ERRO_TECNICO` e todo
+  `CONFERENCIA_DIVERGENTE` chamam `Metrics.incrementar` exatamente uma vez. Um teste parametrizado
+  percorre todos os caminhos do `process_outbox_job` e do `recover_expired_locks` e confere a
+  contagem, zero nos demais.
 - **`LIBERAR_REENVIO`:** o job novo reusa o `snapshot_id`. O teste confere que o `request_body`
   da 2ª tentativa é **byte a byte** igual ao da 1ª, mesmo com o algoritmo atual trocado por um fake
   que calcula outra coisa.
@@ -334,6 +341,7 @@ Mais os tipos de resultado (`RespostaSap`, `MensagemSap`).
 
 **Novos (✱):**
 - **app:** `application/{ports,snapshot,submit_contract,process_outbox_job,recover_expired_locks}.py`,
+  `observability/metricas.py`,
   `infrastructure/db/{__init__,modelos,repos,uow,serializacao,heartbeat}.py` e
   `infrastructure/sap/{client,respostas,classificacao}.py`.
 - **migrações:** `alembic.ini`, `migrations/env.py` e `migrations/versions/0001_contratos_outbox.py`.
