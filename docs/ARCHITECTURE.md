@@ -99,7 +99,7 @@ Estados terminais: `CRIADO`, `CANCELADO`. Editáveis pelo vendedor: `RASCUNHO` e
 - **`detalhe`:** só `worker`/`system`, para dado técnico estruturado (chave snake_case de até 40 caracteres, valor `int` ou `str` de até 200). Nunca texto livre em `justificativa`.
 - **`sap_contract_number`:** obrigatório em `SAP_201` e `RECONCILIAR_PARA_CRIADO` (até 10 depois do strip, só dígitos, nunca só zeros, `TODO(decisão #13)`), gravado na forma canônica do VBELN: 10 dígitos com zeros à esquerda (`"40001234"` → `"0040001234"`), para o número vindo do SAP e o digitado na reconciliação serem iguais; proibido nas demais transições.
 - String vazia ou só com espaços conta como ausente.
-- Caractere de controle ou surrogate isolado em `identifier`, `justificativa` ou valor de `detalhe` é `invalid_characters` (o Postgres recusa ` ` em `text`); tab e quebra de linha só na justificativa.
+- Caractere de controle ou surrogate isolado em `identifier`, `justificativa` ou valor de `detalhe` é `invalid_characters` (o Postgres recusa `\x00` em `text`); tab e quebra de linha só na justificativa.
 - O resultado (`Transicao`: `de`, `para`, `evento`, `ator`, `justificativa`, `sap_contract_number`, `detalhe`) é o registro do evento em `contract_events`. O domínio não tem timestamp: `occurred_at` é carimbado pelo caso de uso via porta `Clock`.
 
 ### Classificação de falhas em runtime
