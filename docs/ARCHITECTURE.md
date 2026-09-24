@@ -108,20 +108,19 @@ Estados terminais: `CRIADO`, `CANCELADO`. Editáveis pelo vendedor: `RASCUNHO` e
 
 ### Classificação de falhas em runtime
 
-Enquanto o worker está vivo, o evento é escolhido pelo **tipo da exceção `httpx`** (ou pelo status HTTP se houver resposta). Nenhuma dessas classes cai em lock recovery — o worker escolhe a transição direto no `except`.
+Enquanto o worker está vivo, a regra é **"o POST pode ter saído?"**: não → retry permitido; sim ou na dúvida → `INCERTO`, sem retry. O evento é escolhido pelo **tipo da exceção `httpx`** (ou pelo status HTTP se houver resposta) aplicando essa regra. Nenhuma dessas classes cai em lock recovery — o worker escolhe a transição direto no `except`.
 
 **Exceções de transporte:**
 
 | Situação                          | Exceção `httpx`                                                     | Evento                     |
 |---                                |---                                                                  |---                         |
-| CSRF fetch: rede ou `5xx`         | `httpx.ConnectError`, `httpx.ConnectTimeout`, ou status `5xx` no `GET` do token | `FALHA_ANTES_POST` (retry com backoff) |
+| CSRF fetch: qualquer falha        | qualquer exceção (`ConnectError`, `ConnectTimeout`, `PoolTimeout`, `ReadTimeout`, `ReadError`, `RemoteProtocolError`, não mapeada...) ou status diferente de `401`/`403` no `GET` do token | `FALHA_ANTES_POST` (retry com backoff): o POST ainda nem começou |
 | CSRF fetch: `401`/`403`           | status `401` ou `403` no `GET` do token                             | `SAP_4XX_TECNICO`, **sem retry**, com alerta: repetir login pode bloquear o usuário técnico no SAP |
-| CSRF fetch: outro erro            | outro status ou outra exceção no `GET` do token                     | `SAP_4XX_TECNICO` (outro `4xx`) ou `FALHA_NAO_CLASSIFICADA_ANTES_ENVIO`, sem retry |
-| conexão não estabeleceu           | `httpx.ConnectError`, `httpx.ConnectTimeout`                        | `FALHA_ANTES_POST`         |
+| POST: conexão não estabeleceu     | `httpx.ConnectError`, `httpx.ConnectTimeout`, `httpx.PoolTimeout`   | `FALHA_ANTES_POST` (nenhum byte do body saiu; vale mesmo com o marcador commitado) |
 | envio do body falhou              | `httpx.WriteError`, `httpx.WriteTimeout`                            | `CONEXAO_CAIDA_APOS_POST` (conservador — write parcial pode ter chegado) |
 | resposta não veio (timeout)       | `httpx.ReadTimeout`                                                 | `TIMEOUT_APOS_POST`        |
-| resposta não veio (conexão)       | `httpx.ReadError`, `httpx.RemoteProtocolError`                      | `CONEXAO_CAIDA_APOS_POST`  |
-| qualquer outra exceção            | não listada acima                                                   | `FALHA_NAO_CLASSIFICADA_ANTES_ENVIO` se o marcador `request_sent_at` **não** foi commitado; `FALHA_NAO_CLASSIFICADA_APOS_ENVIO` se foi (conservador) |
+| resposta não veio (conexão)       | `httpx.ReadError`, `httpx.RemoteProtocolError` (inclusive conexão do pool morta que falha como `ReadError` depois da escrita) | `CONEXAO_CAIDA_APOS_POST`  |
+| qualquer outra exceção            | não listada acima, fora do fetch do CSRF                            | `FALHA_NAO_CLASSIFICADA_ANTES_ENVIO` (→ `ERRO_TECNICO`) se o marcador `request_sent_at` **não** foi commitado: o POST não saiu; `FALHA_NAO_CLASSIFICADA_APOS_ENVIO` (→ `INCERTO`) se foi: fail-safe |
 
 **Respostas HTTP — precedência de 4xx (primeiro match vence):**
 
