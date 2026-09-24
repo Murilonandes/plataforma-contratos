@@ -10,14 +10,14 @@ from fastapi import FastAPI
 
 from app.api.deps import get_settings
 from app.main import create_app
-from app.settings import Settings
+from app.settings import ApiSettings
 from tests.conftest import ConfiguraSap
 
 
 @pytest.fixture
 def app(sap_env: ConfiguraSap) -> FastAPI:
     sap_env()
-    return create_app(Settings())
+    return create_app(ApiSettings())
 
 
 @pytest.fixture

@@ -71,7 +71,7 @@ TDD em domínio e aplicação. Commits pequenos e push na `develop` a cada taref
 **Arquivos:** △ `docs/sap/metadata.xml`, △ `backend/tests/unit/domain/_referencias_sap.py`,
 ✱ `backend/tests/unit/domain/test_metadata_xml.py`
 
-## Tarefa 2.1 — Settings da Fase 2
+## Tarefa 2.1 — Settings da Fase 2 — ✅ FEITA
 
 Novas configs, validadas no startup e cobertas por teste:
 - **Settings por processo:** o secret do SAP vai **só para o worker**; a API recebe só o do banco.

@@ -1,4 +1,4 @@
-"""Hardening do Settings apos as revisoes de seguranca da Fase 0.
+"""Hardening do WorkerSettings apos as revisoes de seguranca da Fase 0.
 
 - Guard: SAP_PRD_HOSTS e o host da SAP_BASE_URL so aceitam hostname DNS ASCII
   (letras, digitos, hifen e pontos; rotulos de 1 a 63; ao menos um ponto).
@@ -17,7 +17,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from app.settings import Settings, validar_hostname
+from app.settings import WorkerSettings, validar_hostname
 from tests.conftest import ConfiguraSap
 
 _PRD = {"app_env": "prd", "base_url": "https://s4-prd.acme/x/", "prd_hosts": "s4-prd.acme"}
@@ -85,7 +85,7 @@ def test_validar_hostname_rejeita(entrada: str) -> None:
 def test_prd_hosts_invalido_derruba_o_boot(sap_env: ConfiguraSap, prd_hosts: str) -> None:
     sap_env(prd_hosts=prd_hosts)
     with pytest.raises(ValidationError) as exc:
-        Settings()
+        WorkerSettings()
     assert "SAP_PRD_HOSTS: entrada" in str(exc.value)
 
 
@@ -93,7 +93,7 @@ def test_prd_hosts_entrada_rejeitada_aparece_truncada_em_64(sap_env: ConfiguraSa
     entrada = ("a" * 63) + ";" + ("Z" * 200)
     sap_env(prd_hosts=entrada)
     with pytest.raises(ValidationError) as exc:
-        Settings()
+        WorkerSettings()
     msg = str(exc.value)
     assert f"'{entrada[:64]}...'" in msg
     assert "Z" not in msg
@@ -101,7 +101,7 @@ def test_prd_hosts_entrada_rejeitada_aparece_truncada_em_64(sap_env: ConfiguraSa
 
 def test_prd_hosts_guarda_em_lowercase(sap_env: ConfiguraSap) -> None:
     sap_env(prd_hosts="S4-PRD.ACME, s4-DR.acme")
-    assert Settings().sap_prd_hosts == ("s4-prd.acme", "s4-dr.acme")
+    assert WorkerSettings().sap_prd_hosts == ("s4-prd.acme", "s4-dr.acme")
 
 
 # ---- host da SAP_BASE_URL ----------------------------------------------------
@@ -129,14 +129,14 @@ def test_base_url_com_host_nao_dns_ascii_derruba_o_boot(
     creds = "file" if app_env == "prd" else "env"
     sap_env(app_env=app_env, base_url=base_url, prd_hosts="s4-prd.acme", creds_via=creds)
     with pytest.raises(ValidationError) as exc:
-        Settings()
+        WorkerSettings()
     assert "SAP_BASE_URL: host precisa ser hostname DNS ASCII" in str(exc.value)
 
 
 def test_guard_case_insensitive_bloqueia_dev(sap_env: ConfiguraSap) -> None:
     sap_env(app_env="dev", base_url="https://S4-PRD.ACME/x/", prd_hosts="s4-prd.ACME")
     with pytest.raises(ValidationError) as exc:
-        Settings()
+        WorkerSettings()
     assert "nao pode apontar para host de producao" in str(exc.value)
 
 
@@ -149,7 +149,7 @@ def test_guard_case_insensitive_bloqueia_dev(sap_env: ConfiguraSap) -> None:
 def test_base_url_com_userinfo_derruba_o_boot(sap_env: ConfiguraSap, base_url: str) -> None:
     sap_env(base_url=base_url)
     with pytest.raises(ValidationError) as exc:
-        Settings()
+        WorkerSettings()
     msg = str(exc.value)
     assert "SAP_BASE_URL nao pode conter usuario/senha" in msg
     assert "TopSecret" not in msg
@@ -164,7 +164,7 @@ def test_secret_de_arquivo_com_newline_final_e_stripado(
     sap_env(**_PRD, creds_via="file")
     (isolated_settings_env / "sap_user").write_text("usuario\n", encoding="utf-8")
     (isolated_settings_env / "sap_pass").write_text("senha\n", encoding="utf-8")
-    settings = Settings()
+    settings = WorkerSettings()
     assert settings.sap_user.get_secret_value() == "usuario"
     assert settings.sap_pass.get_secret_value() == "senha"
 
@@ -183,14 +183,14 @@ def test_secret_vazio_fora_de_dev_derruba_o_boot(
     (isolated_settings_env / "sap_pass").write_text(conteudo, encoding="utf-8")
     monkeypatch.setenv("SAP_PASS", "do-env-nao-pode-salvar")
     with pytest.raises(ValidationError) as exc:
-        Settings()
+        WorkerSettings()
     assert "SAP_PASS" in str(exc.value)
     assert "vazio" in str(exc.value)
 
 
 def test_credencial_vazia_em_dev_continua_aceita(sap_env: ConfiguraSap) -> None:
     sap_env(sap_user="", sap_pass="")
-    assert Settings().sap_pass.get_secret_value() == ""
+    assert WorkerSettings().sap_pass.get_secret_value() == ""
 
 
 # ---- Achado 5: fonte efetiva em qas/prd -------------------------------------
@@ -201,7 +201,7 @@ def test_prd_rejeita_credencial_por_init_kwarg(sap_env: ConfiguraSap, campo: str
     sap_env(**_PRD, creds_via="file")
     kwargs = {campo: "via-kwarg"}
     with pytest.raises(ValidationError) as exc:
-        Settings(**kwargs)  # type: ignore[arg-type]
+        WorkerSettings(**kwargs)  # type: ignore[arg-type]
     assert f"{campo.upper()} nao pode vir de argumento" in str(exc.value)
 
 
@@ -213,15 +213,16 @@ def test_prd_rejeita_secrets_dir_diferente_do_configurado(
     outro.mkdir()
     monkeypatch.setenv("SAP_USER", "u-env")
     monkeypatch.setenv("SAP_PASS", "p-env")
+    monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://u:p@db/x")
     with pytest.raises(ValidationError) as exc:
-        Settings(_secrets_dir=str(outro))  # type: ignore[call-arg]
+        WorkerSettings(_secrets_dir=str(outro))  # type: ignore[call-arg]
     # nao usar so "secrets_dir": o texto aparece no path temporario do pytest
     assert "secrets_dir efetivo difere do configurado" in str(exc.value)
 
 
 def test_dev_aceita_init_kwargs(sap_env: ConfiguraSap) -> None:
     sap_env()
-    assert Settings(sap_pass="kw").sap_pass.get_secret_value() == "kw"  # type: ignore[arg-type]
+    assert WorkerSettings(sap_pass="kw").sap_pass.get_secret_value() == "kw"  # type: ignore[arg-type]
 
 
 def test_credencial_de_env_tambem_e_stripada_em_dev(
@@ -229,7 +230,7 @@ def test_credencial_de_env_tambem_e_stripada_em_dev(
 ) -> None:
     sap_env()
     monkeypatch.setenv("SAP_PASS", "  senha\n")
-    assert Settings().sap_pass.get_secret_value() == "senha"
+    assert WorkerSettings().sap_pass.get_secret_value() == "senha"
 
 
 def test_prd_rejeita_init_kwarg_mesmo_com_valor_igual_ao_do_arquivo(
@@ -237,7 +238,7 @@ def test_prd_rejeita_init_kwarg_mesmo_com_valor_igual_ao_do_arquivo(
 ) -> None:
     sap_env(**_PRD, creds_via="file", sap_pass="p-arquivo")
     with pytest.raises(ValidationError) as exc:
-        Settings(sap_pass="p-arquivo")  # type: ignore[arg-type]
+        WorkerSettings(sap_pass="p-arquivo")  # type: ignore[arg-type]
     assert "SAP_PASS nao pode vir de argumento" in str(exc.value)
 
 
@@ -249,8 +250,10 @@ def test_prd_rejeita_secrets_dir_alternativo_mesmo_com_arquivos_identicos(
     outro.mkdir()
     (outro / "sap_user").write_text("u", encoding="utf-8")
     (outro / "sap_pass").write_text("p", encoding="utf-8")
+    db = "postgresql+asyncpg://app:db-pass@db:5432/contratos"  # o mesmo do diretorio certo
+    (outro / "database_url").write_text(db, encoding="utf-8")
     with pytest.raises(ValidationError) as exc:
-        Settings(_secrets_dir=str(outro))  # type: ignore[call-arg]
+        WorkerSettings(_secrets_dir=str(outro))  # type: ignore[call-arg]
     assert "secrets_dir efetivo difere do configurado" in str(exc.value)
 
 
@@ -260,5 +263,5 @@ def test_prd_rejeita_secrets_dir_alternativo_mesmo_com_arquivos_identicos(
 def test_prd_hosts_entrada_vazia_tem_mensagem_clara(sap_env: ConfiguraSap, prd_hosts: str) -> None:
     sap_env(prd_hosts=prd_hosts)
     with pytest.raises(ValidationError) as exc:
-        Settings()
+        WorkerSettings()
     assert "SAP_PRD_HOSTS: entrada vazia na lista" in str(exc.value)

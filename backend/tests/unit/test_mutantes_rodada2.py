@@ -23,7 +23,7 @@ from pydantic_settings.sources.providers.secrets import SecretsSettingsSource
 from app.entrypoints import api
 from app.observability.logging import REDACTED, configure_logging
 from app.observability.middleware import CorrelationIdMiddleware
-from app.settings import Settings
+from app.settings import WorkerSettings
 from tests.conftest import ConfiguraSap
 
 _PRD = {"app_env": "prd", "base_url": "https://s4-prd.acme/x/", "prd_hosts": "s4-prd.acme"}
@@ -43,7 +43,7 @@ def test_log_de_startup_nao_carrega_input_dos_erros(
     monkeypatch.delenv("SAP_CLIENT")  # erro "missing": o input e o dict inteiro do env
 
     def uvicorn_run_falso(*_a: object, **_k: object) -> None:
-        Settings()
+        WorkerSettings()
 
     monkeypatch.setattr(api.uvicorn, "run", uvicorn_run_falso)
     with pytest.raises(SystemExit):
@@ -76,7 +76,7 @@ def test_prd_rejeita_valor_lido_de_arquivo_diferente_do_validado(
 
     monkeypatch.setattr(SecretsSettingsSource, "find_case_path", classmethod(find_case_path_falso))
     with pytest.raises(ValidationError) as exc:
-        Settings()
+        WorkerSettings()
     assert "SAP_PASS carregado nao veio do arquivo" in str(exc.value)
 
 
@@ -92,7 +92,7 @@ def test_prd_rejeita_lista_de_secrets_dirs_mesmo_incluindo_o_configurado(
     (outro / "sap_user").write_text("u", encoding="utf-8")
     (outro / "sap_pass").write_text("p", encoding="utf-8")
     with pytest.raises(ValidationError) as exc:
-        Settings(_secrets_dir=[str(isolated_settings_env), str(outro)])  # type: ignore[call-arg]
+        WorkerSettings(_secrets_dir=[str(isolated_settings_env), str(outro)])  # type: ignore[call-arg]
     assert "secrets_dir efetivo difere do configurado" in str(exc.value)
 
 
@@ -186,5 +186,5 @@ def test_prd_hosts_rejeitado_com_motivo_especifico(
 ) -> None:
     sap_env(prd_hosts=entrada)
     with pytest.raises(ValidationError) as exc:
-        Settings()
+        WorkerSettings()
     assert motivo in str(exc.value)

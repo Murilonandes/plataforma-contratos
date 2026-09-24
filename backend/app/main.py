@@ -8,10 +8,10 @@ from app.api import health
 from app.api.deps import get_settings
 from app.observability.logging import configure_logging
 from app.observability.middleware import CorrelationIdMiddleware
-from app.settings import Settings
+from app.settings import ApiSettings
 
 
-def create_app(settings: Settings | None = None) -> FastAPI:
+def create_app(settings: ApiSettings | None = None) -> FastAPI:
     """Monta a app. Sem ``settings``, carrega do ambiente (fail-closed)."""
     settings = settings or get_settings()
     configure_logging(settings.log_level)

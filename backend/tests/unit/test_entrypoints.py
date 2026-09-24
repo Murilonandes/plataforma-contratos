@@ -13,7 +13,7 @@ from typing import Any
 import pytest
 
 from app.entrypoints import api, worker
-from app.settings import Settings
+from app.settings import ApiSettings
 from tests.conftest import ConfiguraSap
 
 
@@ -38,11 +38,37 @@ def test_api_configura_logging_antes_de_subir_a_app(
     assert any("warning durante o load do Settings" in str(x["event"]) for x in linhas)
 
 
-def test_worker_loga_em_json_e_sai_zero(capsys: pytest.CaptureFixture[str]) -> None:
+def test_worker_loga_em_json_e_sai_zero(
+    capsys: pytest.CaptureFixture[str], sap_env: ConfiguraSap
+) -> None:
+    sap_env()
     with pytest.raises(SystemExit) as exc:
         worker.main()
     assert exc.value.code == 0
     assert _linhas_json(capsys)[-1]["event"] == "worker stub — Fase 2"
+
+
+def test_worker_sem_config_sai_1_em_json_sem_senha(
+    capsys: pytest.CaptureFixture[str], sap_env: ConfiguraSap
+) -> None:
+    """Fail-closed: o worker carrega WorkerSettings antes de qualquer coisa."""
+    senha = "senha-worker-nao-vaza-7c1d"
+    sap_env(
+        app_env="prd",
+        base_url="https://s4-prd.acme/x/",
+        creds_via="env",
+        sap_pass=senha,
+    )
+    with pytest.raises(SystemExit) as exc:
+        worker.main()
+    assert exc.value.code == 1
+    saida = capsys.readouterr()
+    assert senha not in saida.out + saida.err
+    falha = [json.loads(x) for x in saida.out.splitlines() if x.strip()][-1]
+    assert falha["level"] == "critical"
+    assert falha["event"] == "startup_falhou_config_invalida"
+    assert "SAP_USER deve vir de arquivo" in json.dumps(falha["erros"])
+    assert saida.err == ""
 
 
 def test_api_falha_de_config_no_startup_sai_1_em_json_sem_senha(
@@ -56,11 +82,11 @@ def test_api_falha_de_config_no_startup_sai_1_em_json_sem_senha(
         base_url="https://s4-prd.acme/x/",
         prd_hosts="s4-prd.acme",
         creds_via="env",
-        sap_pass=senha,
+        database_url=f"postgresql+asyncpg://app:{senha}@db:5432/contratos",
     )
 
     def uvicorn_run_falso(*_args: object, **_kwargs: object) -> None:
-        Settings()  # o que a factory faz no uvicorn real
+        ApiSettings()  # o que a factory faz no uvicorn real
 
     monkeypatch.setattr(api.uvicorn, "run", uvicorn_run_falso)
     with pytest.raises(SystemExit) as exc:
@@ -72,7 +98,7 @@ def test_api_falha_de_config_no_startup_sai_1_em_json_sem_senha(
     falha = linhas[-1]
     assert falha["level"] == "critical"
     assert falha["event"] == "startup_falhou_config_invalida"
-    assert "SAP_USER deve vir de arquivo" in json.dumps(falha["erros"])
+    assert "DATABASE_URL deve vir de arquivo" in json.dumps(falha["erros"])
     assert saida.err == ""
 
 

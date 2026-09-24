@@ -1,6 +1,17 @@
 """Configuracoes do backend — fail-closed em APP_ENV x SAP host.
 
-Contrato (ver ``docs/plans/fase-0-1.md`` Tarefa 0.3 e a revisao de seguranca):
+Uma classe por processo (Fase 2, Tarefa 2.1): a API nunca recebe o SAP.
+
+- ``ApiSettings``: ``APP_ENV``, ``LOG_LEVEL`` e ``DATABASE_URL``.
+- ``WorkerSettings``: o mesmo mais a config SAP abaixo e a do worker
+  (``SAP_DECIMAL_AS_STRING``, ``SAP_MAX_TENTATIVAS``, ``SAP_LOCK_TIMEOUT_S``,
+  ``WORKER_POLL_INTERVAL_S``). Guard do lock (D4): ``SAP_LOCK_TIMEOUT_S`` precisa
+  ser maior que o prazo por tentativa + 60 s, com prazo = 4 x (connect + read)
+  (CSRF + POST + refetch do CSRF + POST, pior caso).
+- ``DATABASE_URL`` (``postgresql+asyncpg://``) e credencial como SAP_USER/SAP_PASS:
+  a regra de fonte de arquivo abaixo vale para toda credencial da classe.
+
+Contrato do SAP (ver ``docs/plans/fase-0-1.md`` Tarefa 0.3 e a revisao de seguranca):
 
 - ``SAP_BASE_URL`` e obrigatorio, SEMPRE https (Basic Auth nao trafega em http)
   e sem userinfo (``user:pass@``): credencial so vem de SAP_USER/SAP_PASS.
@@ -30,9 +41,16 @@ import re
 from contextvars import ContextVar
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Annotated, Literal
+from typing import Annotated, ClassVar, Literal
 
-from pydantic import HttpUrl, SecretStr, field_validator, model_validator
+from pydantic import (
+    Field,
+    HttpUrl,
+    SecretStr,
+    ValidationInfo,
+    field_validator,
+    model_validator,
+)
 from pydantic_settings import (
     BaseSettings,
     InitSettingsSource,
@@ -42,7 +60,6 @@ from pydantic_settings import (
 )
 
 _SECRETS_DIR_PADRAO = "/run/secrets"
-_CAMPOS_CREDENCIAL = ("sap_user", "sap_pass")
 _ROTULO_DNS = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$")
 _MAX_ECO = 64
 
@@ -118,8 +135,8 @@ def _dir_efetivo(fonte: PydanticBaseSettingsSource) -> Path | None:
     return existentes[0]
 
 
-class Settings(BaseSettings):
-    """Configuracao central do backend."""
+class _SettingsBase(BaseSettings):
+    """Fontes, credenciais por arquivo e o que todo processo tem."""
 
     model_config = SettingsConfigDict(
         env_prefix="",
@@ -131,14 +148,11 @@ class Settings(BaseSettings):
         hide_input_in_errors=True,
     )
 
+    # Credenciais da classe, na ordem em que o validator de fonte as confere.
+    _CREDENCIAIS: ClassVar[tuple[str, ...]] = ("database_url",)
+
     app_env: Literal["dev", "qas", "prd"]
-    sap_base_url: HttpUrl
-    sap_client: str
-    sap_prd_hosts: Annotated[tuple[str, ...], NoDecode]
-    sap_user: SecretStr
-    sap_pass: SecretStr
-    sap_timeout_connect_s: float = 5.0
-    sap_timeout_read_s: float = 90.0
+    database_url: SecretStr
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
 
     # -- Fontes ----------------------------------------------------------------
@@ -166,13 +180,119 @@ class Settings(BaseSettings):
             _FontesCredencial(
                 secrets_dir_efetivo=efetivo,
                 credenciais_por_init=frozenset(
-                    k.lower() for k in init_kwargs if k.lower() in _CAMPOS_CREDENCIAL
+                    k.lower() for k in init_kwargs if k.lower() in cls._CREDENCIAIS
                 ),
             )
         )
         if efetivo is not None:
             return init_settings, file_secret_settings, env_settings, dotenv_settings
         return init_settings, env_settings, dotenv_settings
+
+    # -- Validators de campo ---------------------------------------------------
+
+    @field_validator("*", mode="before")
+    @classmethod
+    def _strip_credencial(cls, valor: object, info: ValidationInfo) -> object:
+        """Remove espacos e o \\n final de arquivo criado com ``echo`` (so credenciais)."""
+        if info.field_name not in cls._CREDENCIAIS:
+            return valor
+        if isinstance(valor, SecretStr):
+            return SecretStr(valor.get_secret_value().strip())
+        if isinstance(valor, str):
+            return valor.strip()
+        return valor
+
+    @field_validator("database_url", mode="after")
+    @classmethod
+    def _database_url_asyncpg(cls, valor: SecretStr) -> SecretStr:
+        if not valor.get_secret_value().startswith("postgresql+asyncpg://"):
+            raise ValueError("DATABASE_URL deve usar o driver postgresql+asyncpg://")
+        return valor
+
+    @field_validator("log_level", mode="before")
+    @classmethod
+    def _normaliza_log_level(cls, valor: object) -> object:
+        return valor.strip().upper() if isinstance(valor, str) else valor
+
+    # -- Validators de modelo --------------------------------------------------
+
+    @model_validator(mode="after")
+    def _credenciais_fora_de_dev_devem_vir_de_arquivo(self) -> _SettingsBase:
+        """Em qas/prd, toda credencial da classe so vale vinda da fonte de arquivo efetiva.
+
+        Confere: nenhum init kwarg de credencial; o diretorio lido e o
+        configurado; o arquivo existe, nao e vazio apos strip e o valor carregado
+        e o do arquivo (se o operador esqueceu o secret, o env nao salva o boot).
+        """
+        if self.app_env == "dev":
+            return self
+        fontes = _fontes_correntes.get()
+        configurado = _dir_configurado(self.model_config)
+        for campo in type(self)._CREDENCIAIS:
+            nome = campo.upper()
+            if fontes is not None and campo in fontes.credenciais_por_init:
+                raise ValueError(
+                    f"Em app_env='{self.app_env}', {nome} nao pode vir de argumento; "
+                    f"use arquivo em {configurado}"
+                )
+            if fontes is None or fontes.secrets_dir_efetivo is None:
+                raise ValueError(
+                    f"Em app_env='{self.app_env}', {nome} deve vir de arquivo em "
+                    f"{configurado}, nunca de variavel de ambiente"
+                )
+            if fontes.secrets_dir_efetivo.resolve() != configurado.resolve():
+                raise ValueError(
+                    f"Em app_env='{self.app_env}', secrets_dir efetivo difere do configurado "
+                    f"({configurado})"
+                )
+            arquivo = configurado / campo
+            if not arquivo.is_file():
+                raise ValueError(
+                    f"Em app_env='{self.app_env}', {nome} deve vir de arquivo em "
+                    f"{configurado}, nunca de variavel de ambiente"
+                )
+            conteudo = arquivo.read_text(encoding="utf-8").strip()
+            if not conteudo:
+                raise ValueError(
+                    f"Em app_env='{self.app_env}', arquivo de {nome} em {configurado} esta vazio"
+                )
+            # Defesa em profundidade: com arquivo > env e init barrado, so difere se
+            # a fonte (case-insensitive) leu outro arquivo, ex. SAP_PASS vs sap_pass
+            # num filesystem case-sensitive.
+            if getattr(self, campo).get_secret_value() != conteudo:
+                raise ValueError(
+                    f"Em app_env='{self.app_env}', {nome} carregado nao veio do arquivo em "
+                    f"{configurado}"
+                )
+        return self
+
+
+class ApiSettings(_SettingsBase):
+    """Processo da API: so o banco. Nunca recebe config nem credencial do SAP."""
+
+
+class WorkerSettings(_SettingsBase):
+    """Processo do worker: banco + SAP + parametros do outbox."""
+
+    # SAP primeiro: mantem as mensagens de erro do SAP como eram na Fase 0.
+    _CREDENCIAIS: ClassVar[tuple[str, ...]] = ("sap_user", "sap_pass", "database_url")
+
+    sap_base_url: HttpUrl
+    sap_client: str
+    sap_prd_hosts: Annotated[tuple[str, ...], NoDecode]
+    sap_user: SecretStr
+    sap_pass: SecretStr
+    sap_timeout_connect_s: Annotated[float, Field(gt=0)] = 5.0
+    sap_timeout_read_s: Annotated[float, Field(gt=0)] = 90.0
+    sap_decimal_as_string: bool = True  # TODO(decisao #4): confirmar no 1o POST em DEV
+    sap_max_tentativas: Annotated[int, Field(ge=1)] = 5
+    sap_lock_timeout_s: Annotated[float, Field(gt=0)] = 600.0
+    worker_poll_interval_s: Annotated[float, Field(gt=0)] = 2.0
+
+    @property
+    def prazo_tentativa_s(self) -> float:
+        """Pior caso de uma tentativa: CSRF + POST + refetch do CSRF + POST (D4)."""
+        return 4 * (self.sap_timeout_connect_s + self.sap_timeout_read_s)
 
     # -- Validators de campo ---------------------------------------------------
 
@@ -226,25 +346,10 @@ class Settings(BaseSettings):
             )
         return valor
 
-    @field_validator("sap_user", "sap_pass", mode="before")
-    @classmethod
-    def _strip_credencial(cls, valor: object) -> object:
-        """Remove espacos e o \\n final de arquivo criado com ``echo``."""
-        if isinstance(valor, SecretStr):
-            return SecretStr(valor.get_secret_value().strip())
-        if isinstance(valor, str):
-            return valor.strip()
-        return valor
-
-    @field_validator("log_level", mode="before")
-    @classmethod
-    def _normaliza_log_level(cls, valor: object) -> object:
-        return valor.strip().upper() if isinstance(valor, str) else valor
-
     # -- Validators de modelo --------------------------------------------------
 
     @model_validator(mode="after")
-    def _valida_ambiente_vs_host(self) -> Settings:
+    def _valida_ambiente_vs_host(self) -> WorkerSettings:
         try:
             host = validar_hostname(self.sap_base_url.host or "")
         except ValueError as exc:
@@ -263,51 +368,12 @@ class Settings(BaseSettings):
         return self
 
     @model_validator(mode="after")
-    def _credenciais_fora_de_dev_devem_vir_de_arquivo(self) -> Settings:
-        """Em qas/prd, SAP_USER e SAP_PASS so valem vindos da fonte de arquivo efetiva.
-
-        Confere: nenhum init kwarg de credencial; o diretorio lido e o
-        configurado; o arquivo existe, nao e vazio apos strip e o valor carregado
-        e o do arquivo (se o operador esqueceu o secret, o env nao salva o boot).
-        """
-        if self.app_env == "dev":
-            return self
-        fontes = _fontes_correntes.get()
-        configurado = _dir_configurado(self.model_config)
-        for campo in _CAMPOS_CREDENCIAL:
-            nome = campo.upper()
-            if fontes is not None and campo in fontes.credenciais_por_init:
-                raise ValueError(
-                    f"Em app_env='{self.app_env}', {nome} nao pode vir de argumento; "
-                    f"use arquivo em {configurado}"
-                )
-            if fontes is None or fontes.secrets_dir_efetivo is None:
-                raise ValueError(
-                    f"Em app_env='{self.app_env}', {nome} deve vir de arquivo em "
-                    f"{configurado}, nunca de variavel de ambiente"
-                )
-            if fontes.secrets_dir_efetivo.resolve() != configurado.resolve():
-                raise ValueError(
-                    f"Em app_env='{self.app_env}', secrets_dir efetivo difere do configurado "
-                    f"({configurado})"
-                )
-            arquivo = configurado / campo
-            if not arquivo.is_file():
-                raise ValueError(
-                    f"Em app_env='{self.app_env}', {nome} deve vir de arquivo em "
-                    f"{configurado}, nunca de variavel de ambiente"
-                )
-            conteudo = arquivo.read_text(encoding="utf-8").strip()
-            if not conteudo:
-                raise ValueError(
-                    f"Em app_env='{self.app_env}', arquivo de {nome} em {configurado} esta vazio"
-                )
-            # Defesa em profundidade: com arquivo > env e init barrado, so difere se
-            # a fonte (case-insensitive) leu outro arquivo, ex. SAP_PASS vs sap_pass
-            # num filesystem case-sensitive.
-            if getattr(self, campo).get_secret_value() != conteudo:
-                raise ValueError(
-                    f"Em app_env='{self.app_env}', {nome} carregado nao veio do arquivo em "
-                    f"{configurado}"
-                )
+    def _lock_maior_que_o_prazo_da_tentativa(self) -> WorkerSettings:
+        """D4: o lock nao pode expirar com uma tentativa ainda em andamento."""
+        prazo = self.prazo_tentativa_s
+        if self.sap_lock_timeout_s <= prazo + 60:
+            raise ValueError(
+                f"SAP_LOCK_TIMEOUT_S ({self.sap_lock_timeout_s:g} s) deve ser maior que o prazo "
+                f"por tentativa ({prazo:g} s) + 60 s"
+            )
         return self

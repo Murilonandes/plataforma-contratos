@@ -288,6 +288,7 @@ Configuração por organização de vendas (tipo de contrato, canal, setor, escr
   - `Contratos.Integracao`: client credentials, para o n8n.
 - **Autorização** checada no caso de uso, não só na rota.
 - **Credenciais SAP** via Docker secret, lidas por arquivo. Nunca em env de compose versionado nem em log. O `Authorization` é redigido nos logs e no `request_body` salvo.
+- **Settings por processo:** a API (`ApiSettings`) recebe só `APP_ENV`, `LOG_LEVEL` e `DATABASE_URL`; config e credencial do SAP vão **só para o worker** (`WorkerSettings`). Em qas/prd, `DATABASE_URL`, `SAP_USER` e `SAP_PASS` só valem vindos de arquivo de secret.
 - **Rede:** o CORS só permite o domínio do front. Rate limit por usuário no `POST /contracts`.
 - **CI:** `pip-audit`, `npm audit`, `trivy` na imagem e `gitleaks`.
 

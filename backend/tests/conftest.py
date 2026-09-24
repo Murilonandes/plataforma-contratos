@@ -2,7 +2,8 @@
 
 Isola o ambiente de cada teste: aponta o ``secrets_dir`` do ``Settings`` para
 um diretorio temporario (evita depender de ``/run/secrets`` na maquina do dev)
-e limpa qualquer ``SAP_*`` / ``APP_ENV`` / ``LOG_LEVEL`` herdado do shell.
+e limpa qualquer ``SAP_*`` / ``DATABASE_URL`` / ``APP_ENV`` / ``LOG_LEVEL`` /
+``WORKER_*`` herdado do shell.
 
 Perfis do Hypothesis: ``dev`` (default, rapido) e ``ci`` (mais exemplos e
 ``derandomize=True``: o mesmo commit gera os mesmos exemplos, sem flaky).
@@ -35,11 +36,18 @@ settings.load_profile(os.environ.get("HYPOTHESIS_PROFILE", "dev"))
 
 _ENV_VARS_ISOLADAS = (
     "APP_ENV",
+    "DATABASE_URL",
     "SAP_BASE_URL",
     "SAP_CLIENT",
     "SAP_PRD_HOSTS",
     "SAP_USER",
     "SAP_PASS",
+    "SAP_TIMEOUT_CONNECT_S",
+    "SAP_TIMEOUT_READ_S",
+    "SAP_DECIMAL_AS_STRING",
+    "SAP_MAX_TENTATIVAS",
+    "SAP_LOCK_TIMEOUT_S",
+    "WORKER_POLL_INTERVAL_S",
     "LOG_LEVEL",
 )
 
@@ -49,12 +57,13 @@ def isolated_settings_env(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> Path:
-    """Sanitiza env e redireciona ``secrets_dir`` do Settings pra ``tmp_path``."""
-    from app.settings import Settings
+    """Sanitiza env e redireciona ``secrets_dir`` dos settings pra ``tmp_path``."""
+    from app.settings import ApiSettings, WorkerSettings
 
     secrets_dir = tmp_path / "run_secrets"
     secrets_dir.mkdir()
-    monkeypatch.setitem(Settings.model_config, "secrets_dir", str(secrets_dir))
+    for cls in (ApiSettings, WorkerSettings):  # model_config e copiado por classe
+        monkeypatch.setitem(cls.model_config, "secrets_dir", str(secrets_dir))
 
     for var in _ENV_VARS_ISOLADAS:
         monkeypatch.delenv(var, raising=False)
@@ -108,11 +117,11 @@ def sap_env(
     monkeypatch: pytest.MonkeyPatch,
     isolated_settings_env: Path,
 ) -> ConfiguraSap:
-    """Configura env do SAP para um teste.
+    """Configura env do worker (SAP + banco) para um teste.
 
-    ``creds_via='env'`` (default): SAP_USER/SAP_PASS via variavel de ambiente
-    (permitido em dev). ``creds_via='file'``: grava os secrets em ``secrets_dir``
-    (obrigatorio em qas/prd).
+    ``creds_via='env'`` (default): SAP_USER/SAP_PASS/DATABASE_URL via variavel de
+    ambiente (permitido em dev). ``creds_via='file'``: grava os secrets em
+    ``secrets_dir`` (obrigatorio em qas/prd).
     """
     secrets_dir = isolated_settings_env
 
@@ -125,6 +134,7 @@ def sap_env(
         creds_via: str = "env",
         sap_user: str = "user1",
         sap_pass: str = "pass1",
+        database_url: str = "postgresql+asyncpg://app:db-pass@db:5432/contratos",
     ) -> None:
         monkeypatch.setenv("APP_ENV", app_env)
         monkeypatch.setenv("SAP_BASE_URL", base_url)
@@ -135,9 +145,11 @@ def sap_env(
         if creds_via == "env":
             monkeypatch.setenv("SAP_USER", sap_user)
             monkeypatch.setenv("SAP_PASS", sap_pass)
+            monkeypatch.setenv("DATABASE_URL", database_url)
         elif creds_via == "file":
             (secrets_dir / "sap_user").write_text(sap_user, encoding="utf-8")
             (secrets_dir / "sap_pass").write_text(sap_pass, encoding="utf-8")
+            (secrets_dir / "database_url").write_text(database_url, encoding="utf-8")
         else:
             raise ValueError(f"creds_via desconhecido: {creds_via!r}")
 

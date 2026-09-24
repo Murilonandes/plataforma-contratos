@@ -1,4 +1,4 @@
-"""Testes de ``app.settings.Settings`` (contrato fail-closed).
+"""Testes de ``app.settings.WorkerSettings`` (contrato fail-closed).
 
 Cobre: obrigatoriedade, https-only, parsing de SAP_PRD_HOSTS (lowercase, sem
 esquema, sem porta), mascaramento de SecretStr e politica de credenciais fora
@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from app.settings import Settings
+from app.settings import WorkerSettings
 from tests.conftest import ConfiguraSap
 
 # ---- Happy path ------------------------------------------------------------
@@ -20,7 +20,7 @@ from tests.conftest import ConfiguraSap
 
 def test_dev_com_env_padrao_carrega(sap_env: ConfiguraSap) -> None:
     sap_env()
-    settings = Settings()
+    settings = WorkerSettings()
     assert settings.app_env == "dev"
     assert str(settings.sap_base_url).startswith("https://s4-dev.acme/")
     assert settings.sap_client == "300"
@@ -35,7 +35,7 @@ def test_sap_base_url_ausente_falha(sap_env: ConfiguraSap, monkeypatch: pytest.M
     sap_env()
     monkeypatch.delenv("SAP_BASE_URL", raising=False)
     with pytest.raises(ValidationError):
-        Settings()
+        WorkerSettings()
 
 
 def test_sap_prd_hosts_ausente_falha(
@@ -44,7 +44,7 @@ def test_sap_prd_hosts_ausente_falha(
     sap_env()
     monkeypatch.delenv("SAP_PRD_HOSTS", raising=False)
     with pytest.raises(ValidationError):
-        Settings()
+        WorkerSettings()
 
 
 @pytest.mark.parametrize("valor", ["", "   ", ",", " , , "])
@@ -54,7 +54,7 @@ def test_sap_prd_hosts_vazio_ou_so_separador_falha(
     sap_env()
     monkeypatch.setenv("SAP_PRD_HOSTS", valor)
     with pytest.raises(ValidationError) as exc:
-        Settings()
+        WorkerSettings()
     assert "SAP_PRD_HOSTS e obrigatorio e nao pode estar vazio" in str(exc.value)
 
 
@@ -64,7 +64,7 @@ def test_sap_base_url_http_e_rejeitado(
     sap_env()
     monkeypatch.setenv("SAP_BASE_URL", "http://s4-dev.acme/path/")
     with pytest.raises(ValidationError) as exc:
-        Settings()
+        WorkerSettings()
     assert "SAP_BASE_URL deve usar https" in str(exc.value)
 
 
@@ -74,7 +74,7 @@ def test_prd_hosts_com_esquema_falha(
     sap_env()
     monkeypatch.setenv("SAP_PRD_HOSTS", "https://s4-prd.acme")
     with pytest.raises(ValidationError) as exc:
-        Settings()
+        WorkerSettings()
     assert "SAP_PRD_HOSTS" in str(exc.value)
     assert "esquema" in str(exc.value)
 
@@ -83,7 +83,7 @@ def test_prd_hosts_com_porta_falha(sap_env: ConfiguraSap, monkeypatch: pytest.Mo
     sap_env()
     monkeypatch.setenv("SAP_PRD_HOSTS", "s4-prd.acme:443")
     with pytest.raises(ValidationError) as exc:
-        Settings()
+        WorkerSettings()
     assert "SAP_PRD_HOSTS" in str(exc.value)
     assert "porta" in str(exc.value)
 
@@ -93,7 +93,7 @@ def test_prd_hosts_lowercase_normalizado(
 ) -> None:
     sap_env()
     monkeypatch.setenv("SAP_PRD_HOSTS", "S4-PRD.ACME , S4-PRD-DR.ACME")
-    settings = Settings()
+    settings = WorkerSettings()
     assert settings.sap_prd_hosts == ("s4-prd.acme", "s4-prd-dr.acme")
 
 
@@ -102,7 +102,7 @@ def test_prd_hosts_lowercase_normalizado(
 
 def test_credenciais_via_env_em_dev_ok(sap_env: ConfiguraSap) -> None:
     sap_env(sap_user="usr-x", sap_pass="pw-x")
-    settings = Settings()
+    settings = WorkerSettings()
     assert settings.sap_user.get_secret_value() == "usr-x"
     assert settings.sap_pass.get_secret_value() == "pw-x"
 
@@ -110,7 +110,7 @@ def test_credenciais_via_env_em_dev_ok(sap_env: ConfiguraSap) -> None:
 def test_str_do_settings_nao_expoe_senha(sap_env: ConfiguraSap) -> None:
     senha = "super-secret-9f8e7d6c5b4a"
     sap_env(sap_pass=senha)
-    settings = Settings()
+    settings = WorkerSettings()
     assert senha not in str(settings)
     assert senha not in repr(settings)
 
@@ -118,7 +118,7 @@ def test_str_do_settings_nao_expoe_senha(sap_env: ConfiguraSap) -> None:
 def test_model_dump_nao_expoe_senha(sap_env: ConfiguraSap) -> None:
     senha = "outro-segredo-01234"
     sap_env(sap_pass=senha)
-    settings = Settings()
+    settings = WorkerSettings()
     dump = settings.model_dump()
     assert senha not in repr(dump)
     dump_json = settings.model_dump(mode="json")
@@ -128,7 +128,7 @@ def test_model_dump_nao_expoe_senha(sap_env: ConfiguraSap) -> None:
 
 def test_credenciais_via_file_em_dev_tambem_ok(sap_env: ConfiguraSap) -> None:
     sap_env(creds_via="file", sap_user="from-file", sap_pass="pw-from-file")
-    settings = Settings()
+    settings = WorkerSettings()
     assert settings.sap_user.get_secret_value() == "from-file"
     assert settings.sap_pass.get_secret_value() == "pw-from-file"
 
@@ -150,7 +150,7 @@ def test_fora_de_dev_credenciais_devem_vir_de_arquivo(sap_env: ConfiguraSap, app
         sap_env(app_env=app_env, creds_via="env")
 
     with pytest.raises(ValidationError) as exc:
-        Settings()
+        WorkerSettings()
     msg = str(exc.value)
     assert app_env in msg
     assert "SAP_USER" in msg or "SAP_PASS" in msg
@@ -165,7 +165,7 @@ def test_prd_com_credenciais_de_arquivo_carrega(sap_env: ConfiguraSap) -> None:
         sap_user="prd-user",
         sap_pass="prd-pass",
     )
-    settings = Settings()
+    settings = WorkerSettings()
     assert settings.app_env == "prd"
     assert settings.sap_user.get_secret_value() == "prd-user"
     assert settings.sap_pass.get_secret_value() == "prd-pass"
@@ -177,7 +177,7 @@ def test_prd_com_credenciais_de_arquivo_carrega(sap_env: ConfiguraSap) -> None:
 @pytest.fixture
 def sem_secrets_dir(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
     ausente = tmp_path / "nao-montado"
-    monkeypatch.setitem(Settings.model_config, "secrets_dir", str(ausente))
+    monkeypatch.setitem(WorkerSettings.model_config, "secrets_dir", str(ausente))
     return ausente
 
 
@@ -185,7 +185,7 @@ def sem_secrets_dir(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
 def test_dev_sem_secrets_dir_carrega_sem_warning(sap_env: ConfiguraSap) -> None:
     # filterwarnings=error: qualquer UserWarning do pydantic-settings falharia aqui.
     sap_env(creds_via="env", sap_user="u-env", sap_pass="p-env")
-    settings = Settings()
+    settings = WorkerSettings()
     assert settings.sap_pass.get_secret_value() == "p-env"
 
 
@@ -198,7 +198,7 @@ def test_fora_de_dev_sem_secrets_dir_e_com_env_falha(
         kwargs |= {"base_url": "https://s4-prd.acme/path/", "prd_hosts": "s4-prd.acme"}
     sap_env(**kwargs)
     with pytest.raises(ValidationError) as exc:
-        Settings()
+        WorkerSettings()
     msg = str(exc.value)
     assert f"app_env='{app_env}'" in msg
     assert str(sem_secrets_dir) in msg
@@ -214,7 +214,7 @@ def test_arquivo_de_secret_tem_precedencia_sobre_env(
     sap_env(**kwargs, sap_user="u-arquivo", sap_pass="p-arquivo")
     monkeypatch.setenv("SAP_USER", "u-env")
     monkeypatch.setenv("SAP_PASS", "p-env")
-    settings = Settings()
+    settings = WorkerSettings()
     assert settings.sap_user.get_secret_value() == "u-arquivo"
     assert settings.sap_pass.get_secret_value() == "p-arquivo"
 
@@ -239,7 +239,7 @@ _SENHA_ERRO = "senha-que-nao-pode-vazar-7c3e"
 def test_validation_error_nao_expoe_senha(sap_env: ConfiguraSap, cenario: dict[str, str]) -> None:
     sap_env(**cenario, creds_via="env", sap_pass=_SENHA_ERRO)
     with pytest.raises(ValidationError) as exc:
-        Settings()
+        WorkerSettings()
     assert _SENHA_ERRO not in str(exc.value)
     # errors() sempre inclui o input (design do pydantic); quem logar erros
     # estruturados usa include_input=False, como o entrypoint da api.

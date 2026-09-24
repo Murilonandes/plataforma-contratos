@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from app.settings import Settings
+from app.settings import WorkerSettings
 from tests.conftest import ConfiguraSap
 
 # Cada caso: (id, app_env, url_base, prd_hosts, deve_carregar, msg_parcial)
@@ -87,12 +87,12 @@ def test_matriz_env_x_host(
         creds_via=creds_via,
     )
     if deve_carregar:
-        settings = Settings()
+        settings = WorkerSettings()
         assert settings.app_env == app_env
     else:
         assert msg_parcial is not None
         with pytest.raises(ValidationError) as exc:
-            Settings()
+            WorkerSettings()
         assert msg_parcial in str(exc.value)
 
 
@@ -107,7 +107,7 @@ def test_prd_url_maiuscula_bate_lista_lowercase(sap_env: ConfiguraSap) -> None:
         prd_hosts="s4-prd.acme",
         creds_via="file",
     )
-    settings = Settings()
+    settings = WorkerSettings()
     assert settings.app_env == "prd"
 
 
@@ -119,7 +119,7 @@ def test_prd_url_com_porta_explicita_ok(sap_env: ConfiguraSap) -> None:
         prd_hosts="s4-prd.acme",
         creds_via="file",
     )
-    settings = Settings()
+    settings = WorkerSettings()
     assert settings.sap_base_url.host == "s4-prd.acme"
 
 
@@ -132,7 +132,7 @@ def test_prd_subdominio_parecido_rejeita(sap_env: ConfiguraSap) -> None:
         creds_via="file",
     )
     with pytest.raises(ValidationError) as exc:
-        Settings()
+        WorkerSettings()
     assert "APP_ENV=prd exige" in str(exc.value)
 
 
@@ -140,5 +140,5 @@ def test_http_e_sempre_rejeitado(sap_env: ConfiguraSap) -> None:
     """Basic Auth nao pode trafegar em http, em nenhum ambiente."""
     sap_env(base_url="http://sap-dev.acme/path/")
     with pytest.raises(ValidationError) as exc:
-        Settings()
+        WorkerSettings()
     assert "SAP_BASE_URL deve usar https" in str(exc.value)

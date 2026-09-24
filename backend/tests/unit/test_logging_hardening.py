@@ -23,7 +23,7 @@ from pydantic import ValidationError
 
 from app.entrypoints import api, worker
 from app.observability.logging import REDACTED, configure_logging
-from app.settings import Settings
+from app.settings import WorkerSettings
 from tests.conftest import ConfiguraSap
 
 _BASIC = "Basic dXNlcjpwYXNz"
@@ -151,7 +151,7 @@ def test_settings_normaliza_log_level(
 ) -> None:
     sap_env()
     monkeypatch.setenv("LOG_LEVEL", valor)
-    assert Settings().log_level == esperado
+    assert WorkerSettings().log_level == esperado
 
 
 def test_settings_rejeita_log_level_invalido(
@@ -160,7 +160,7 @@ def test_settings_rejeita_log_level_invalido(
     sap_env()
     monkeypatch.setenv("LOG_LEVEL", "verbose")
     with pytest.raises(ValidationError):
-        Settings()
+        WorkerSettings()
 
 
 def test_configure_logging_com_nivel_invalido_nao_quebra_e_avisa_em_json(
@@ -179,7 +179,7 @@ def test_api_com_log_level_invalido_sai_1_em_json(
     monkeypatch.setenv("LOG_LEVEL", "verbose")
 
     def uvicorn_run_falso(*_a: object, **_k: object) -> None:
-        Settings()
+        WorkerSettings()
 
     monkeypatch.setattr(api.uvicorn, "run", uvicorn_run_falso)
     with pytest.raises(SystemExit) as exc:
@@ -220,8 +220,9 @@ def test_threading_excepthook_emite_json(capsys: pytest.CaptureFixture[str]) -> 
 
 
 def test_worker_respeita_log_level(
-    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch, sap_env: ConfiguraSap
 ) -> None:
+    sap_env()
     monkeypatch.setenv("LOG_LEVEL", "ERROR")
     with pytest.raises(SystemExit) as exc:
         worker.main()
@@ -230,9 +231,11 @@ def test_worker_respeita_log_level(
 
 
 def test_worker_falha_sai_1_em_json(
-    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch, sap_env: ConfiguraSap
 ) -> None:
-    def explode() -> None:
+    sap_env()
+
+    def explode(_settings: object) -> None:
         raise RuntimeError("loop do outbox caiu")
 
     monkeypatch.setattr(worker, "_executar", explode)

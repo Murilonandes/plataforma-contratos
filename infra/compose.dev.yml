@@ -8,17 +8,16 @@ x-backend: &backend
   build:
     context: ../backend
   image: plataforma-contratos-backend:dev
-  environment:
-    APP_ENV: ${APP_ENV:-dev}
-    LOG_LEVEL: ${LOG_LEVEL:-INFO}
-    SAP_BASE_URL: ${SAP_BASE_URL}
-    SAP_CLIENT: ${SAP_CLIENT}
-    SAP_PRD_HOSTS: ${SAP_PRD_HOSTS:-}
-    SAP_USER: ${SAP_USER:-}
-    SAP_PASS: ${SAP_PASS:-}
   depends_on:
     db:
       condition: service_healthy
+
+# A API recebe SO o banco; a config e a credencial do SAP vao so para o worker.
+# Em dev o DATABASE_URL vem do env; em qas/prd, de Docker secret (database_url).
+x-env-api: &env-api
+  APP_ENV: ${APP_ENV:-dev}
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
 
 services:
   db:
@@ -39,6 +38,8 @@ services:
 
   api:
     <<: *backend
+    environment:
+      <<: *env-api
     ports:
       - "127.0.0.1:8000:8000"
     # A imagem nao traz HEALTHCHECK (e compartilhada com o worker); declarado aqui.
@@ -55,8 +56,16 @@ services:
 
   worker:
     <<: *backend
+    environment:
+      <<: *env-api
+      SAP_BASE_URL: ${SAP_BASE_URL}
+      SAP_CLIENT: ${SAP_CLIENT}
+      SAP_PRD_HOSTS: ${SAP_PRD_HOSTS:-}
+      SAP_USER: ${SAP_USER:-}
+      SAP_PASS: ${SAP_PASS:-}
     command: ["app.entrypoints.worker"]
-    # Sem HTTP: sem healthcheck HTTP. Stub da Fase 0 sai com 0.
+    # Sem HTTP: sem healthcheck HTTP. Stub (Fase 2 em andamento) carrega o
+    # WorkerSettings e sai com 0.
     restart: "no"
 
   web:

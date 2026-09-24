@@ -163,12 +163,11 @@ jobs:
       - name: smoke backend (api, nao-root, fail-closed, worker)
         run: |
           set -euo pipefail
+          DB_CI=postgresql+asyncpg://ci:ci@db.invalid:5432/ci
+          # a API sobe SEM nenhuma variavel do SAP (so o worker recebe o SAP)
           docker run -d --name api -p 8000:8000 \
             -e APP_ENV=dev \
-            -e SAP_BASE_URL=https://s4-dev.example/x/ \
-            -e SAP_CLIENT=300 \
-            -e SAP_PRD_HOSTS=s4-prd.example \
-            -e SAP_USER=ci -e SAP_PASS=ci \
+            -e DATABASE_URL="$DB_CI" \
             "$BACKEND_IMG"
           for i in $(seq 1 30); do
             curl -fsS http://127.0.0.1:8000/health/live && break || sleep 1
@@ -196,10 +195,18 @@ jobs:
           [[ "$logs" != *uvicorn.access* ]] || falha "access log do uvicorn deveria estar desligado"
           [[ "$logs" != *CI_QUERY_LEAK* ]] || falha "query string vazou no log"
           docker rm -f api
-          # fail-closed: sem SAP_* a api nao pode subir
+          # fail-closed: sem DATABASE_URL a api nao pode subir
           if docker run --rm "$BACKEND_IMG"; then echo "api subiu sem config!"; exit 1; fi
-          # worker stub sai com 0
-          docker run --rm "$BACKEND_IMG" app.entrypoints.worker
+          # fail-closed: sem config SAP o worker nao pode subir
+          if docker run --rm -e APP_ENV=dev -e DATABASE_URL="$DB_CI" "$BACKEND_IMG" app.entrypoints.worker; then
+            falha "worker subiu sem config SAP"
+          fi
+          # worker com banco + SAP: stub carrega o WorkerSettings e sai com 0
+          docker run --rm \
+            -e APP_ENV=dev -e DATABASE_URL="$DB_CI" \
+            -e SAP_BASE_URL=https://s4-dev.example/x/ -e SAP_CLIENT=300 \
+            -e SAP_PRD_HOSTS=s4-prd.example -e SAP_USER=ci -e SAP_PASS=ci \
+            "$BACKEND_IMG" app.entrypoints.worker
 
       - name: smoke frontend (nginx, SPA, headers)
         run: |
