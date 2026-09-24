@@ -41,6 +41,7 @@ from app.domain.contract import (
     Contract,
     Tipo,
 )
+from app.domain.money import casas_decimais, sem_zero_negativo
 
 STATUS_BLOCK: Final = "06"
 
@@ -87,11 +88,10 @@ def _entidade(obj: object, specs: tuple[Campo, ...], *, como_string: bool) -> di
 def _decimal(c: Campo, valor: object, como_string: bool) -> Decimal | str:
     if not isinstance(valor, Decimal) or not valor.is_finite():
         raise ValueError(f"{c.odata}: decimal ausente ou invalido")
-    fixo = valor.quantize(_QUANTUNS[c.odata])
-    if fixo != valor:
+    valor = sem_zero_negativo(valor)  # -0 -> 0, antes de validar (mesma regra do dominio)
+    if casas_decimais(valor) > _ESCALAS[c.odata]:
         raise ValueError(f"{c.odata}: {valor} tem mais de {_ESCALAS[c.odata]} casas decimais")
-    if fixo.is_zero():
-        fixo = fixo.copy_abs()  # -0 -> 0
+    fixo = valor.quantize(_QUANTUNS[c.odata])  # exato: cabe na escala
     return f"{fixo:f}" if como_string else fixo  # ponto fixo, nunca str(Decimal)
 
 

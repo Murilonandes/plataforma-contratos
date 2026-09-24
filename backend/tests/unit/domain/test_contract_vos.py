@@ -389,6 +389,18 @@ def test_menor_parcela_positiva_e_aceita() -> None:
     )
 
 
+@pytest.mark.parametrize(
+    ("valor", "canonico"),
+    [("0E-10", "0E-9"), ("-0", "0E-9"), ("-0E-12", "0E-9"), ("0.0000000000", "0E-9")],
+)
+def test_zero_com_qualquer_expoente_ou_sinal_vira_zero_canonico(valor: str, canonico: str) -> None:
+    """Mesma regra do mapper (money.casas_decimais / sem_zero_negativo)."""
+    dados = _valido()
+    dados["to_PricingElement"][0]["ConditionRateValue"] = Decimal(valor)
+    resultado = Contract.criar(dados).pricing[0].condition_rate_value
+    assert str(resultado) == canonico
+
+
 @pytest.mark.parametrize("valor", ["-1.5", "0", "-0.000000001", "1164.98"])
 def test_condition_rate_value_aceita_qualquer_sinal(valor: str) -> None:
     """Descontos/abatimentos podem ser negativos. TODO(decisao #14): quais ConditionType."""

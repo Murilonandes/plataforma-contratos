@@ -32,6 +32,7 @@ from app.domain.contract import (
     Contract,
     Tipo,
 )
+from app.domain.errors import DomainValidationError
 from app.domain.installments import calcular_parcelas
 from app.infrastructure.sap.mapper import STATUS_BLOCK, to_json, to_payload
 from tests.unit.domain._referencias_sap import (
@@ -268,6 +269,8 @@ def test_quantidade_com_escala_3_nos_dois_modos(entrada: Decimal, texto: str) ->
         (Decimal("-0"), "0.000000000"),
         (Decimal("-0E-12"), "0.000000000"),
         (Decimal("0"), "0.000000000"),
+        (Decimal("0E-15"), "0.000000000"),  # zero com mais casas que a escala: e zero
+        (Decimal("-0E-15"), "0.000000000"),
     ],
 )
 def test_taxa_com_escala_9_sem_expoente_e_sem_menos_zero(entrada: Decimal, texto: str) -> None:
@@ -284,6 +287,27 @@ def test_valor_com_mais_casas_que_a_escala_e_erro_nunca_arredonda() -> None:
         ValueError, match=r"^RequestedQuantity: 1\.2345 tem mais de 3 casas decimais$"
     ):
         to_payload(_com_quantidade(Decimal("1.2345")), decimal_as_string=True)
+
+
+@pytest.mark.parametrize(
+    "valor",
+    ["1", "1.5000000000", "-0E-20", "0E-10", "1.0000000001", "-3.25", "1E+5", "12.3456789012"],
+)
+def test_mapper_e_dominio_aceitam_a_mesma_escala(valor: str) -> None:
+    """B1: a mesma regra de escala (money.casas_decimais) nos dois lados."""
+    dados = payload_exemplo_como_entrada()
+    dados["to_PricingElement"][0]["ConditionRateValue"] = Decimal(valor)
+    try:
+        Contract.criar(dados)
+        dominio_aceita = True
+    except DomainValidationError:
+        dominio_aceita = False
+    try:
+        to_payload(_com_taxa(Decimal(valor)), decimal_as_string=True)
+        mapper_aceita = True
+    except ValueError:
+        mapper_aceita = False
+    assert dominio_aceita == mapper_aceita
 
 
 @pytest.mark.parametrize("valor", [None, Decimal("NaN"), Decimal("Infinity"), 1.5, 2])

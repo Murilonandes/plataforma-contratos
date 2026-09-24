@@ -18,10 +18,12 @@ from app.domain.money import (
     PCT,
     QTY,
     RATE,
+    casas_decimais,
     quantize_brl,
     quantize_pct,
     quantize_qty,
     quantize_rate,
+    sem_zero_negativo,
 )
 
 # ---- Exemplos do plano -------------------------------------------------------
@@ -145,3 +147,44 @@ def test_quantizacao_erra_no_maximo_meia_unidade(valor: Decimal) -> None:
         resultado = funcao(valor)
         assert abs(resultado - valor) <= unidade / 2
         assert resultado.as_tuple().exponent == unidade.as_tuple().exponent
+
+
+# ---- casas_decimais e sem_zero_negativo (dominio e mapper usam os mesmos) ------
+
+
+@pytest.mark.parametrize(
+    ("valor", "casas"),
+    [
+        ("1", 0),
+        ("100", 0),
+        ("1E+2", 0),
+        ("1.5", 1),
+        ("1.50", 1),
+        ("1.5000000", 1),
+        ("0.001", 3),
+        ("1E-9", 9),
+        ("-2.25", 2),
+        ("0", 0),
+        ("0.000", 0),
+        ("0E-10", 0),
+        ("-0E-12", 0),
+        ("1." + "0" * 40 + "1", 41),  # mais digitos que qualquer contexto padrao
+        ("1" + "0" * 40, 0),
+    ],
+)
+def test_casas_decimais_significativas(valor: str, casas: int) -> None:
+    assert casas_decimais(Decimal(valor)) == casas
+
+
+def test_casas_decimais_rejeita_float() -> None:
+    with pytest.raises(TypeError, match=r"^use Decimal, nunca float$"):
+        casas_decimais(1.5)  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize(
+    ("valor", "esperado"),
+    [("-0", "0"), ("-0E-12", "0E-12"), ("-0.00", "0.00"), ("0", "0"), ("-1.5", "-1.5"), ("2", "2")],
+)
+def test_sem_zero_negativo(valor: str, esperado: str) -> None:
+    resultado = sem_zero_negativo(Decimal(valor))
+    assert str(resultado) == esperado  # compara a representacao: sinal e expoente

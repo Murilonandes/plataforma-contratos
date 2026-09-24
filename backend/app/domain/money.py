@@ -12,7 +12,7 @@ modulo ``decimal`` e ``ROUND_HALF_EVEN`` e daria outro resultado nos empates.
 
 from __future__ import annotations
 
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import ROUND_HALF_UP, Context, Decimal
 
 BRL = Decimal("0.01")
 QTY = Decimal("0.001")
@@ -27,6 +27,22 @@ def _ensure_decimal(v: object) -> Decimal:
     if not v.is_finite():
         raise ValueError("valor monetario/quantidade precisa ser finito (sem NaN/Infinity)")
     return v
+
+
+def casas_decimais(v: Decimal) -> int:
+    """Casas decimais significativas: zeros a direita nao contam; zero tem 0 casas.
+
+    Regra unica de escala do dominio e do mapper. ``normalize`` num contexto com
+    precisao igual ao numero de digitos do proprio valor: exato, nunca arredonda,
+    e nao depende do contexto decimal da thread.
+    """
+    exato = Context(prec=len(_ensure_decimal(v).as_tuple().digits))
+    return max(0, -int(v.normalize(exato).as_tuple().exponent))
+
+
+def sem_zero_negativo(v: Decimal) -> Decimal:
+    """``-0`` (em qualquer expoente) vira ``0``; os demais valores ficam intactos."""
+    return v.copy_abs() if v.is_zero() else v
 
 
 def quantize_brl(v: Decimal) -> Decimal:

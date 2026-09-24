@@ -43,7 +43,14 @@ from enum import Enum
 from typing import Any, Final
 
 from app.domain.errors import ErrorCode, ErrorCollector, campo, indice
-from app.domain.money import quantize_brl, quantize_pct, quantize_qty, quantize_rate
+from app.domain.money import (
+    casas_decimais,
+    quantize_brl,
+    quantize_pct,
+    quantize_qty,
+    quantize_rate,
+    sem_zero_negativo,
+)
 from app.domain.politica import POLITICA_PADRAO, PoliticaSalesOrg
 from app.domain.rules import validar_moedas, validar_parcelas, validar_regras
 
@@ -196,17 +203,6 @@ _IDENTIFICADORES_PARCEIRO: Final = ("customer", "supplier", "personnel", "contac
 # ---- Validacao de campo ------------------------------------------------------
 
 
-def _casas_decimais(v: Decimal) -> int:
-    """Casas decimais significativas, sem ``normalize()`` (que arredonda no contexto)."""
-    _, digitos, expoente = v.as_tuple()
-    exp = int(expoente)
-    d = list(digitos)
-    while exp < 0 and len(d) > 1 and d[-1] == 0:
-        d.pop()
-        exp += 1
-    return max(0, -exp)
-
-
 def _digitos_inteiros(v: Decimal) -> int:
     return v.adjusted() + 1 if v else 0
 
@@ -241,7 +237,8 @@ def _validar_decimal(c: Campo, bruto: object, path: str, col: ErrorCollector) ->
         return None
     if c.escala is None or c.precisao is None:  # pragma: no cover - garantido pela tabela
         raise TypeError(f"campo decimal {c.odata} sem escala/precisao")
-    if _casas_decimais(bruto) > c.escala:
+    bruto = sem_zero_negativo(bruto)
+    if casas_decimais(bruto) > c.escala:
         col.adicionar(path, ErrorCode.DECIMAL_SCALE, max=c.escala)
         return None
     max_inteiros = c.precisao - c.escala
