@@ -1,6 +1,7 @@
 # Plano — Fase 2 (Adapter SAP + worker + outbox)
 
-> Status: **proposta, aguardando aprovação**. Nenhum código da Fase 2 começa antes disso.
+> Status: **revisão 2, aguardando aprovação final** (D1, D2, D8 e o default `INCERTO` aprovados;
+> D6 rejeitada e substituída por D6′; D11–D14 novas). Nenhum código da Fase 2 começa antes disso.
 > Fonte da verdade do design: `docs/ARCHITECTURE.md` (§4 máquina de estados e classificação de
 > falhas, §6 modelo de dados, §7 integração SAP, §10 observabilidade). Regras invioláveis: `CLAUDE.md`.
 
@@ -37,20 +38,24 @@ Tudo auditado em `contract_events` e `contract_submissions`, e comprovado num sm
 
 | # | Decisão | Proposta |
 |---|---|---|
-| D1 | Onde fica o caso de uso que coloca o contrato na fila (`submit_contract`: `RASCUNHO`/`ERRO_NEGOCIO` → `NA_FILA` + job, na mesma transação) | **Nesta fase**, na camada de aplicação e sem rota: é o produtor do outbox e o smoke precisa dele. A rota HTTP vem na Fase 3. |
-| D2 | Fronteiras de transação do worker | Três commits por tentativa: (1) pega o job com `FOR UPDATE SKIP LOCKED`, grava `locked_until` e faz `WORKER_PEGOU` (→ `ENVIANDO`); (2) grava a linha em `contract_submissions` (`request_sent_at`, `request_body`); (3) depois da resposta, grava o resultado, a transição, o evento e o estado do job. O fetch de CSRF acontece **entre 1 e 2**, então falha nele não deixa marcador e é `FALHA_ANTES_POST`. |
+| D1 ✅ | Onde fica o caso de uso que coloca o contrato na fila (`submit_contract`: `RASCUNHO`/`ERRO_NEGOCIO` → `NA_FILA` + job, na mesma transação) | **Nesta fase**, na camada de aplicação e sem rota: é o produtor do outbox e o smoke precisa dele. A rota HTTP vem na Fase 3. |
+| D2 ✅ | Fronteiras de transação do worker | Três commits por tentativa: (1) pega o job com `FOR UPDATE SKIP LOCKED`, grava `locked_until` e faz `WORKER_PEGOU` (→ `ENVIANDO`); (2) grava a linha em `contract_submissions` (`request_sent_at`, `request_body`); (3) depois da resposta, grava o resultado, a transição, o evento e o estado do job. O fetch de CSRF acontece **entre 1 e 2**, então falha nele não deixa marcador e é `FALHA_ANTES_POST`. |
 | D3 | Retry antes do POST | `SAP_MAX_TENTATIVAS` (default 5) com backoff exponencial em `run_after` (30 s × 2^n, teto de 30 min). Ao atingir o teto: `FALHA_ANTES_POST_ESGOTOU`. |
 | D4 | Tempo de lock | `locked_until = agora + SAP_LOCK_TIMEOUT_S` (default 300 s), que precisa ser **maior** que o timeout de leitura (90 s) mais a margem. Um guard no settings rejeita configuração menor. |
 | D5 | Relógio | Porta `Clock` na aplicação: `occurred_at`, `request_sent_at`, `run_after` e `locked_until` vêm dela, nunca de `datetime.now()` espalhado. Os testes usam um relógio fixo. |
-| D6 | Forma de `contracts.payload` (JSONB) | A **entrada do domínio**, sem `to_FormPag`: `total`, `pesos`, `datas` e `FormPag` ficam num bloco próprio, e as parcelas são recalculadas por `calcular_parcelas` na hora do envio. Decimal é gravado como string com escala fixa, nunca `float`. |
+| D6′ | Snapshot na submissão (substitui a D6 rejeitada) | Na submissão, o contrato é **congelado completo**: o `Contract` do domínio **já com as parcelas calculadas**, serializado em forma canônica (decimal como string de escala fixa), mais a versão do algoritmo de parcelas (`ALGORITMO_PARCELAS`, ex.: `maior-resto/1`) e a entrada que as gerou (`total`, `pesos`, `datas`, `FormPag`). O snapshot fica em tabela **append-only** `contract_snapshots`, uma linha por submissão; o job e cada `contract_submissions` apontam para o `snapshot_id`. O worker envia **exatamente** esse snapshot: `Contract.criar(snapshot)` → mapper → `to_json`. Recalcular as parcelas serve **só como conferência**; se divergir, o POST não é feito, e o contrato vai para `ERRO_TECNICO` com alerta (ver D11). `LIBERAR_REENVIO` reusa o **mesmo** `snapshot_id` e nunca recalcula. Nova submissão depois de `ERRO_NEGOCIO` (vendedor corrigiu) gera snapshot novo. |
 | D7 | O que o worker grava em `request_body` | Os bytes exatos de `to_json(payload)`, parseados para JSONB. Headers **não** são gravados, então o `Authorization` nunca chega ao banco. |
-| D8 | Classificação de resultado | Módulo **puro** `infrastructure/sap/classificacao.py`: exceção do httpx ou (status, headers, corpo) → `TransitionEvent` + detalhe estruturado, seguindo as duas tabelas da §4. Teste exaustivo lê as tabelas do `.md`, como o `test_states`. **Entra no gate de mutação**, porque decide quando não reenviar. |
-| D9 | Número do contrato na resposta 201 | Lido de `SalesContract` e normalizado pela própria `transition` (VBELN canônico). Se o 201 vier sem número válido, o resultado é `INCERTO`, não `CRIADO`, e gera alerta no log (`TODO(decisão #3)`). |
+| D8 ✅ | Classificação de resultado | Módulo **puro** `infrastructure/sap/classificacao.py`: exceção do httpx ou (status, headers, corpo) → `TransitionEvent` + detalhe estruturado, seguindo as duas tabelas da §4. Teste exaustivo lê as tabelas do `.md`, como o `test_states`. **Entra no gate de mutação**, porque decide quando não reenviar. |
+| D9 | Número do contrato na resposta 201 | Lido de `SalesContract` e normalizado pela própria `transition` (VBELN canônico). Qualquer falha **no nosso processamento** de um 201 vai para `INCERTO` (D12), nunca para `CRIADO`, `ERRO_TECNICO` ou retry (`TODO(decisão #3)`). |
+| D11 | Divergência na conferência do snapshot (evento novo na §4) | Novo evento **`CONFERENCIA_DIVERGENTE`**: `ENVIANDO` → `ERRO_TECNICO`, ator `worker`, sem justificativa, com `detalhe` (parcela, campo). A conferência roda **depois** de `WORKER_PEGOU` e **antes** do CSRF e do marcador, então é garantido que nada foi enviado. Consequência: `LIBERAR_REENVIO` reenvia o mesmo snapshot, e a conferência diverge de novo; a saída é `CANCELAR` e resubmeter. **Pendente:** se a versão do algoritmo no snapshot for diferente da atual, proponho **não** conferir e registrar `conferencia=pulada_versao` no `detalhe` do `WORKER_PEGOU`, porque o snapshot é a fonte da verdade. A alternativa seria tratar como divergência, o que travaria a fila inteira a cada troca de algoritmo. |
+| D12 | Falha no nosso processamento depois de ler o status (evento novo na §4) | Novo evento **`FALHA_APOS_RESPOSTA`**: `ENVIANDO` → `INCERTO`, ator `worker`. Vale para qualquer exceção depois de ler o status: 201 com JSON inválido, `SalesContract` ausente ou fora do formato, erro no parser ou na transição. **Nunca** `ERRO_TECNICO` nem retry. O `response_body` é gravado **cru**: a coluna passa a ser `TEXT` (limite de 1 MiB, truncamento registrado), mais `response_json` `JSONB` só quando o corpo for JSON válido, porque JSON inválido não cabe em `JSONB`. A exceção não listada durante o POST (default aprovado) usa o evento **`FALHA_NAO_CLASSIFICADA`** → `INCERTO`, separado para a auditoria distinguir "SAP respondeu e nós falhamos" de "não sabemos o que aconteceu". A matriz passa de 21 para **24** transições e de 15 para **18** eventos. |
+| D13 | Teste de caos | Exceção injetada em **cada ponto** entre o commit do marcador e o commit do resultado: antes do POST, durante o POST, depois de ler o status, no parse, na transição, na gravação da submissão, do evento e do job, e no commit final. Nos testes com fakes, o ponto é um gancho enumerado. Na integração, o processo é derrubado de verdade e o lock é recuperado. Em **nenhum** caso o contrato volta para `NA_FILA` nem o job é reagendado: o destino é `INCERTO`, direto (`FALHA_APOS_RESPOSTA`/`FALHA_NAO_CLASSIFICADA`) ou via `LOCK_EXPIRADO_COM_ENVIO`. |
+| D14 | `contract_snapshots` imutável | `REVOKE UPDATE, DELETE` no papel da aplicação, como em `contract_events`. O teste de integração tenta atualizar e espera erro. |
 | D10 | Testes de integração | `testcontainers[postgres]` como dependência de dev, com marcador `integration` fora do `pytest` padrão e um job `integration` novo no CI. O caso central é a concorrência de dois workers com `SKIP LOCKED`. |
 
 ## Ordem de execução
 
-`2.0` (quando o metadata chegar) → `2.1` → `2.2` → `2.3` → `2.4` → `2.5` → `2.6` → `2.7` → `2.8`
+`2.0` (quando o metadata chegar) → `2.1` → `2.1b` (matriz §4 com os eventos novos) → `2.2` → `2.3` → `2.4` → `2.5` → `2.6` → `2.7` → `2.8`
 → `2.9` → `2.10` → `2.11` → `2.12` (smoke, com autorização) → `2.13`.
 TDD em domínio e aplicação. Commits pequenos e push na `develop` a cada tarefa, com CI verde.
 
@@ -77,6 +82,21 @@ Novas configs, validadas no startup e cobertas por teste:
 **Arquivos:** △ `backend/app/settings.py`, △ `backend/tests/unit/test_settings*.py`,
 △ `infra/.env.example`, △ `infra/compose.dev.yml` (secret do banco no `api` e no `worker`)
 
+## Tarefa 2.1b — Matriz da §4 com os eventos novos (D11, D12)
+
+- **ARCHITECTURE §4:** três linhas novas na matriz e nas tabelas de classificação.
+  - `ENVIANDO -CONFERENCIA_DIVERGENTE-> ERRO_TECNICO` (worker)
+  - `ENVIANDO -FALHA_APOS_RESPOSTA-> INCERTO` (worker)
+  - `ENVIANDO -FALHA_NAO_CLASSIFICADA-> INCERTO` (worker)
+  - O total passa a **24**.
+- **Código:** `enums.py` (18 eventos) e `states.py`, com TDD. Os testes do `test_states` e do
+  `test_enums` já leem a tabela e acompanham sozinhos.
+- **Garantia de reenvio:** `test_so_falha_antes_do_post_ou_lock_sem_envio_voltam_para_a_fila`
+  continua valendo; nenhum evento novo volta para `NA_FILA`.
+
+**Arquivos:** △ `docs/ARCHITECTURE.md`, △ `backend/app/domain/enums.py`, △ `backend/app/domain/states.py`,
+△ `backend/tests/unit/domain/test_enums.py`, △ `backend/tests/unit/domain/test_states.py`
+
 ## Tarefa 2.2 — Portas da aplicação
 
 `Protocol`s em `application/ports.py`, sem SQLAlchemy nem httpx:
@@ -96,7 +116,9 @@ Mais os tipos de resultado (`RespostaSap`, `MensagemSap`).
 
 ## Tarefa 2.3 — Modelo relacional + migração Alembic
 
-- **Tabelas** (§6): `contracts`, `contract_events`, `contract_submissions` e `outbox_jobs`.
+- **Tabelas** (§6): `contracts`, `contract_snapshots` (D6′, append-only), `contract_events`,
+  `contract_submissions` (com `snapshot_id`, `response_body TEXT` e `response_json JSONB`, D12) e
+  `outbox_jobs` (com `snapshot_id`).
   - Dinheiro e quantidade em `NUMERIC`, instantes em `TIMESTAMPTZ`, `payload` e `request_body` em
     `JSONB`, `status` com `CHECK` nos 8 valores do enum.
 - **Constraints:**
@@ -105,7 +127,8 @@ Mais os tipos de resultado (`RespostaSap`, `MensagemSap`).
   - FK de `contract_events`, `contract_submissions` e `outbox_jobs` para `contracts`.
 - **Índice** de `outbox_jobs (run_after) WHERE locked_until IS NULL OR locked_until < now()`, com
   forma final a ajustar no `EXPLAIN`.
-- **Append-only:** `contract_events` recebe `REVOKE UPDATE, DELETE` no papel da aplicação.
+- **Append-only:** `contract_events` e `contract_snapshots` recebem `REVOKE UPDATE, DELETE` no
+  papel da aplicação (D14).
 - **Testes:** `alembic upgrade head` → `downgrade base` → `upgrade head` no testcontainers.
 
 **Arquivos:** ✱ `backend/alembic.ini`, ✱ `backend/migrations/env.py`,
@@ -120,7 +143,8 @@ Mais os tipos de resultado (`RespostaSap`, `MensagemSap`).
 - `pegar_proximo` usa `SELECT … FOR UPDATE SKIP LOCKED LIMIT n`.
 - `save` do contrato faz lock otimista por `version`.
 - `pedido_sysfertil` vazio é gravado como `NULL` (§6).
-- Serialização do `payload` conforme D6.
+- Serialização do snapshot conforme D6′: `Contract` → JSON canônico → `Contract.criar` de volta.
+  O round-trip é exato, e uma propriedade Hypothesis confere `desserializar(serializar(c)) == c`.
 
 **Testes de integração:**
 - dois workers concorrentes nunca pegam o mesmo job;
@@ -184,7 +208,13 @@ Mais os tipos de resultado (`RespostaSap`, `MensagemSap`).
 - Exceções: `ConnectError`/`ConnectTimeout` → antes do POST; `WriteError`/`WriteTimeout` → conexão
   caída após POST (conservador); `ReadTimeout` → timeout após POST; `ReadError`/`RemoteProtocolError`
   → conexão caída após POST.
-- **Qualquer exceção não listada → `INCERTO`**, pelo lado conservador. Preciso do seu ok nesse default.
+- **Qualquer exceção não listada → `FALHA_NAO_CLASSIFICADA` → `INCERTO`** (default aprovado).
+- **Resposta lida, mas o nosso processamento falhou → `FALHA_APOS_RESPOSTA` → `INCERTO`** (D12).
+  Há um teste para cada variante:
+  - 201 com corpo vazio, corpo que não é JSON, JSON sem `SalesContract` e `SalesContract` `null`,
+    numérico, com letras, com mais de 10 dígitos ou só com zeros;
+  - exceção no parser e exceção na `transition`.
+  - Em todas, o `response_body` fica gravado e nenhuma leva a `ERRO_TECNICO` ou a retry.
 - **Testes:**
   - leem as duas tabelas da §4 do `.md` e conferem com o código;
   - exaustivo por status 100–599;
@@ -195,10 +225,15 @@ Mais os tipos de resultado (`RespostaSap`, `MensagemSap`).
 
 ## Tarefa 2.8 — Casos de uso (TDD, com fakes)
 
-- **`submit_contract` (D1):** valida pelo domínio, calcula as parcelas e aplica
-  `transition(RASCUNHO|ERRO_NEGOCIO, SUBMETER)`. Na **mesma transação**, grava o evento e o job.
+- **`submit_contract` (D1, D6′):**
+  - valida pelo domínio e calcula as parcelas;
+  - **congela o snapshot** com a versão do algoritmo;
+  - aplica `transition(RASCUNHO|ERRO_NEGOCIO, SUBMETER)`;
+  - na **mesma transação**, grava o snapshot, o evento e o job (com `snapshot_id`).
 - **`process_outbox_job` (D2):**
   - pega o job e aplica `WORKER_PEGOU`;
+  - carrega o snapshot e **confere** as parcelas (recalcula com a mesma versão e compara); se
+    divergir, `CONFERENCIA_DIVERGENTE` → `ERRO_TECNICO`, sem CSRF nem POST (D11);
   - faz o fetch de CSRF (falha → `FALHA_ANTES_POST` ou `_ESGOTOU` conforme `attempts`);
   - grava a submissão (commit);
   - faz o POST;
@@ -210,10 +245,18 @@ Mais os tipos de resultado (`RespostaSap`, `MensagemSap`).
 - **Testes:** cada linha da classificação ponta a ponta com fakes; nenhum caminho com body enviado
   reagenda o job; toda transição grava evento; toda tentativa de POST grava submissão; o relógio vem
   da porta.
+- **`LIBERAR_REENVIO`:** o job novo reusa o `snapshot_id`. O teste confere que o `request_body`
+  da 2ª tentativa é **byte a byte** igual ao da 1ª, mesmo com o algoritmo atual trocado por um fake
+  que calcula outra coisa.
+- **Caos (D13):** para cada ponto de injeção entre o commit do marcador e o commit do resultado,
+  uma exceção é levantada ali; depois o `recover_expired_locks` roda. Asserts: o contrato **nunca**
+  volta a `NA_FILA`, o job **nunca** é reagendado, e o estado final é `INCERTO`.
 - **Mutação:** os três arquivos entram no gate.
 
 **Arquivos:** ✱ `backend/app/application/submit_contract.py`, ✱ `backend/app/application/process_outbox_job.py`,
-✱ `backend/app/application/recover_expired_locks.py`, ✱ `backend/tests/unit/application/test_submit_contract.py`,
+✱ `backend/app/application/recover_expired_locks.py`, ✱ `backend/app/application/snapshot.py`
+(serialização e conferência do snapshot), ✱ `backend/tests/unit/application/test_submit_contract.py`,
+✱ `backend/tests/unit/application/test_caos.py`, ✱ `backend/tests/unit/application/test_snapshot.py`,
 ✱ `backend/tests/unit/application/test_process_outbox_job.py`, ✱ `backend/tests/unit/application/test_recover_expired_locks.py`
 
 ## Tarefa 2.9 — Loop do worker
@@ -226,9 +269,12 @@ Mais os tipos de resultado (`RespostaSap`, `MensagemSap`).
 - Parada limpa em SIGTERM/SIGINT: termina a tentativa em curso e não pega job novo.
 - Teste de integração: dois workers reais contra Postgres e SAP fake (respx). Cada job é processado
   exatamente uma vez.
+- **Caos real (D13):** o worker é derrubado (`os._exit`) em cada ponto depois do commit do marcador,
+  e um segundo worker recupera o lock. O contrato termina em `INCERTO` via
+  `LOCK_EXPIRADO_COM_ENVIO` e nunca volta a `NA_FILA`.
 
 **Arquivos:** △ `backend/app/entrypoints/worker.py`, △ `backend/tests/unit/test_entrypoints.py`,
-✱ `backend/tests/integration/test_worker.py`
+✱ `backend/tests/integration/test_worker.py`, ✱ `backend/tests/integration/test_caos.py`
 
 ## Tarefa 2.10 — Readiness
 
@@ -279,7 +325,7 @@ Mais os tipos de resultado (`RespostaSap`, `MensagemSap`).
 ## Resumo de arquivos
 
 **Novos (✱):**
-- **app:** `application/{ports,submit_contract,process_outbox_job,recover_expired_locks}.py`,
+- **app:** `application/{ports,snapshot,submit_contract,process_outbox_job,recover_expired_locks}.py`,
   `infrastructure/db/{__init__,modelos,repos,uow,serializacao,heartbeat}.py` e
   `infrastructure/sap/{client,respostas,classificacao}.py`.
 - **migrações:** `alembic.ini`, `migrations/env.py` e `migrations/versions/0001_contratos_outbox.py`.
@@ -290,7 +336,8 @@ Mais os tipos de resultado (`RespostaSap`, `MensagemSap`).
 - **scripts e testes avulsos:** `scripts/smoke_dev.py` e `tests/unit/domain/test_metadata_xml.py`.
 
 **Alterados (△):**
-- **backend:** `app/settings.py`, `app/entrypoints/worker.py`, `app/main.py`, `pyproject.toml` e
+- **backend:** `app/settings.py`, `app/entrypoints/worker.py`, `app/main.py`, `pyproject.toml`,
+  `app/domain/{enums,states,installments}.py` (eventos novos e `ALGORITMO_PARCELAS`) e
   os helpers de teste `tests/unit/domain/_referencias_{sap,arquitetura}.py`.
 - **infra e CI:** `infra/.env.example`, `infra/compose.dev.yml` e `.github/workflows/ci.yml`.
 - **docs:** `docs/sap/metadata.xml`, `docs/ARCHITECTURE.md` e `docs/PERGUNTAS-ABERTAS.md`.
