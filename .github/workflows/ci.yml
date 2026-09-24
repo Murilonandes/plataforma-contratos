@@ -37,7 +37,7 @@ jobs:
       - run: uv sync --locked
       - run: uv run ruff check .
       - run: uv run ruff format --check .
-      - run: uv run mypy app
+      - run: uv run mypy app tests/unit/application  # fakes conferem as portas
       - run: uv run lint-imports
       - name: pytest (com cobertura)
         run: uv run pytest --cov=app.domain --cov=app.application --cov-report=term-missing --cov-report=xml

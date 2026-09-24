@@ -108,7 +108,7 @@ Feita a pedido do dono do projeto, antes da aprovação do resto do plano, por s
     continua valendo.
 - **Runbook:** criado o `docs/RUNBOOK.md`, com a entrada de `CONFERENCIA_DIVERGENTE`.
 
-## Tarefa 2.2 — Portas da aplicação
+## Tarefa 2.2 — Portas da aplicação — ✅ FEITA
 
 `Protocol`s em `application/ports.py`, sem SQLAlchemy nem httpx:
 - `Clock`
