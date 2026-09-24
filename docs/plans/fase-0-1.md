@@ -1544,6 +1544,19 @@ git commit -m "feat(infra/sap): mapper Contract -> payload OData (StatusBlock=06
 
 ## Tarefa 1.9 — Fechamento Fase 1
 
+> **Registro do fechamento (2026-09-24):**
+> - Checks locais verdes: ruff, ruff format, mypy --strict, import-linter, pytest (1286, perfil `ci`),
+>   cobertura 99,87% em domain/application (gate ≥ 90%), e frontend (test, lint, typecheck,
+>   format:check, build).
+> - Gate de mutação no CI: 624/624 mortos, zero equivalentes (money, installments, states, mapper).
+> - CI do `2e755fd`: tudo verde exceto `images/trivy frontend`, por `CVE-2026-93990` (HIGH, libexpat
+>   2.8.4-r0 na imagem base `nginx:1.30-alpine`; correção em 2.8.5-r0), publicada depois do run
+>   verde anterior. Correção de infra aguardando decisão do dono do projeto.
+> - Regra de sinal: quantidade > 0; `Parcela`, `Porcentagem` e `Valor` > 0 também no VO;
+>   `ConditionRateValue` com qualquer sinal (`TODO(decisão #14)`).
+> - Revisão independente (subagente) do diff da Fase 1: achados entregues ao dono do projeto,
+>   sem correção. Decisões pendentes consolidadas em `docs/PERGUNTAS-ABERTAS.md`.
+
 - [ ] **Passo 1** — Rodar todos os checks:
 
 ```bash
