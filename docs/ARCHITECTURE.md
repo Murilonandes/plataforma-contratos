@@ -97,7 +97,7 @@ Estados terminais: `CRIADO`, `CANCELADO`. Editáveis pelo vendedor: `RASCUNHO` e
 - **Ator:** `kind` igual à coluna Ator; `identifier` não vazio.
 - **Justificativa:** com "sim" em `Justif.` é obrigatória. Com "não", é opcional para `user`/`admin` (se vier, é validada e gravada) e **proibida** para `worker`/`system`. Quando vem, tem de 10 a 500 caracteres depois do strip (`"."` e `"ok"` não valem).
 - **`detalhe`:** só `worker`/`system`, para dado técnico estruturado (chave snake_case de até 40 caracteres, valor `int` ou `str` de até 200). Nunca texto livre em `justificativa`.
-- **`sap_contract_number`:** obrigatório em `SAP_201` e `RECONCILIAR_PARA_CRIADO` (até 10, só dígitos: VBELN, `TODO(decisão #13)`); proibido nas demais transições.
+- **`sap_contract_number`:** obrigatório em `SAP_201` e `RECONCILIAR_PARA_CRIADO` (até 10, só dígitos, `TODO(decisão #13)`), gravado na forma canônica do VBELN: 10 dígitos com zeros à esquerda (`"40001234"` → `"0040001234"`), para o número vindo do SAP e o digitado na reconciliação serem iguais; proibido nas demais transições.
 - String vazia ou só com espaços conta como ausente.
 - O resultado (`Transicao`: `de`, `para`, `evento`, `ator`, `justificativa`, `sap_contract_number`, `detalhe`) é o registro do evento em `contract_events`. O domínio não tem timestamp: `occurred_at` é carimbado pelo caso de uso via porta `Clock`.
 
@@ -343,7 +343,7 @@ Cobertura mínima de 90% em `domain/` e `application/`. Nas outras camadas não 
 | 10 | Lista `required_fields` por sales org (default BRF1: `SalesOffice`, `SalesGroup`, `SDDocumentReason`, `IncotermsClassification`, `IncotermsLocation1`, `CustomerPaymentTerms`, `PurchaseOrderByCustomer`, `PedidoSysFertil`; item: `Plant`, `Culture`) | Comercial | Negócio-mandatory |
 | 11 | Valores permitidos de códigos SAP por sales org (default BRF1: `PartnerFunction` `Y1`/`Y2`; `ConditionType` `PR00`/`ZFRE`/`ZCM1`/`ZCM2`; `FormPag` `K`; `LongTextID` `TX01`; `SalesContractType` `ZCON`; `Language` `PT`) | SD/Sysfértil | Validação no caso de uso (§8) |
 | 12 | Datas base das parcelas precisam ser estritamente crescentes? (hoje o domínio rejeita data igual ou anterior à da parcela anterior) | SD/Comercial | Validação de parcelas (§8) |
-| 13 | Formato do número do contrato SAP (`SalesContract`/VBELN): sempre 10 dígitos com zeros à esquerda? Só dígitos? | SD | Validação de `SAP_201`/`RECONCILIAR_PARA_CRIADO` (§4) |
+| 13 | Formato do número do contrato SAP (`SalesContract`/VBELN): o domínio normaliza para 10 dígitos com zeros à esquerda; confirmar com a 1ª resposta 201 real em DEV (vem com zeros? só dígitos?) | SD / 1º teste DEV | Validação de `SAP_201`/`RECONCILIAR_PARA_CRIADO` (§4) |
 
 ## 15. Revisitar quando crescer
 

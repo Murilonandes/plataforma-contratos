@@ -1245,7 +1245,8 @@ git commit -m "feat(domain): cálculo de parcelas por maior resto + property tes
 >   `ator.identifier`, `justificativa` (obrigatória no "sim"; opcional para user/admin no "não";
 >   `not_applicable` para worker/system; 10 a 500 após strip), `sap_contract_number` (obrigatório
 >   só em `SAP_201`/`RECONCILIAR_PARA_CRIADO`, até 10 dígitos ASCII, `TODO(decisão #13)`;
->   `not_applicable` nas demais) e `detalhe` (só worker/system; chave snake_case até 40, valor
+>   normalizado para o VBELN canônico de 10 dígitos com zeros à esquerda; `not_applicable` nas
+>   demais) e `detalhe` (só worker/system; chave snake_case até 40, valor
 >   `int`/`str` até 200). Vazio ou só espaços = ausente.
 > - `states.py` entrou no mutmut e no gate (zero sobreviventes).
 

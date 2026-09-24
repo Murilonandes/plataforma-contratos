@@ -350,11 +350,28 @@ def test_numero_sap_invalido(
 @pytest.mark.parametrize(("de", "evento"), _COM_NUMERO, ids=_ids)
 @pytest.mark.parametrize(
     ("numero", "gravado"),
-    [("1", "1"), ("0040001234", "0040001234"), (" 4000012345 ", "4000012345")],
+    [
+        ("1", "0000000001"),
+        ("40001234", "0040001234"),
+        ("0040001234", "0040001234"),
+        ("4000012345", "4000012345"),
+        (" 40001234 ", "0040001234"),
+    ],
 )
-def test_numero_sap_valido_gravado_com_strip(de: S, evento: E, numero: str, gravado: str) -> None:
+def test_numero_sap_normalizado_para_vbeln_canonico(
+    de: S, evento: E, numero: str, gravado: str
+) -> None:
+    """VBELN canonico: 10 digitos, zeros a esquerda (TODO(decisao #13): confirmar em DEV)."""
     t = transition(de, evento, **_com(de, evento, sap_contract_number=numero))
     assert t.sap_contract_number == gravado
+
+
+@pytest.mark.parametrize(("de", "evento"), _COM_NUMERO, ids=_ids)
+def test_numero_com_e_sem_zeros_a_esquerda_geram_o_mesmo_registro(de: S, evento: E) -> None:
+    curto = transition(de, evento, **_com(de, evento, sap_contract_number="40001234"))
+    longo = transition(de, evento, **_com(de, evento, sap_contract_number="0040001234"))
+    assert curto == longo
+    assert curto.sap_contract_number == "0040001234"
 
 
 @pytest.mark.parametrize(("de", "evento"), _SEM_NUMERO, ids=_ids)

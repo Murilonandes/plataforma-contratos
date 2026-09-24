@@ -18,7 +18,8 @@ Dados por transicao, validados de forma ACUMULADA (uma ``DomainValidationError``
   detalhe tecnico vai em ``detalhe``, nunca em texto livre. Quando vem: 10 a 500
   caracteres depois do strip.
 - ``sap_contract_number``: obrigatorio em ``SAP_201`` e ``RECONCILIAR_PARA_CRIADO``
-  (ate 10, so digitos ASCII: VBELN, ``TODO(decisao #13)``); proibido nas demais.
+  (ate 10, so digitos ASCII, ``TODO(decisao #13)``), gravado na forma canonica do
+  VBELN (10 digitos, zeros a esquerda); proibido nas demais.
 - ``detalhe``: so worker/system. Mapping com chave snake_case (ate 40) e valor
   ``int`` ou ``str`` (ate 200); gravado como copia imutavel.
 
@@ -199,6 +200,8 @@ def _numero_sap(bruto: object, regra: Regra, col: ErrorCollector) -> str | None:
         col.adicionar("sap_contract_number", ErrorCode.MAX_LENGTH, max=SAP_NUMERO_MAX)
     elif not _DIGITOS.fullmatch(valor):
         col.adicionar("sap_contract_number", ErrorCode.INVALID_FORMAT, formato="somente digitos")
+    else:
+        valor = valor.zfill(SAP_NUMERO_MAX)  # VBELN canonico: "40001234" -> "0040001234"
     return valor
 
 
