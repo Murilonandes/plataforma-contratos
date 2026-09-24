@@ -121,6 +121,16 @@ no 1º POST real em DEV; perguntar antes evita tentativa e erro.
   - item: `Plant`, `Culture`
 - **Onde:** Fase 3 (caso de uso); ARCHITECTURE §8.
 
+### #15 — Existe contrato em outra moeda (ex.: USD)?
+- **Pergunta:** algum contrato de venda é fechado em moeda diferente de BRL? Se sim, em quais sales
+  orgs e com quais moedas? Cabeçalho, itens e parcelas podem ter moedas diferentes?
+- **Contexto:** o `Valor` da parcela tem escala variável conforme a moeda (`Scale=variable` no
+  `$metadata`); o mapper hoje fixa 2 casas, o que só é garantido para BRL.
+- **Default atual:** política da BRF1 só com **BRL**; sales org sem política é rejeitada; itens e
+  parcelas precisam ter a moeda do cabeçalho (item vazio herda).
+- **Onde:** `backend/app/domain/politica.py` (`POLITICA_PADRAO`), `backend/app/domain/rules.py`
+  (`validar_moedas`).
+
 ## Basis
 
 ### #8 — Leitura para reconciliar contratos `INCERTO`

@@ -383,9 +383,12 @@ def _entidade(specs: tuple[Campo, ...]) -> st.SearchStrategy[dict[str, Any]]:
 
 @st.composite
 def _contratos(draw: st.DrawFn) -> Contract:
+    # Politica padrao: BRF1 so com BRL; item sem moeda herda a do cabecalho.
     dados = draw(_entidade(CABECALHO))
+    dados["SalesOrganization"], dados["TransactionCurrency"] = "BRF1", "BRL"
     itens = draw(st.lists(_entidade(ITEM), min_size=1, max_size=3))
     for item in itens:
+        item["TransactionCurrency"] = draw(st.sampled_from(["", "BRL"]))
         item["to_PricingElement"] = draw(st.lists(_entidade(PRECO), max_size=3))
     dados["to_Item"] = itens
     funcoes = draw(st.lists(st.text(_ALFABETO, min_size=1, max_size=2), unique=True, max_size=3))
@@ -407,6 +410,7 @@ def _contratos(draw: st.DrawFn) -> Contract:
                 "Porcentagem": p.porcentagem,
                 "Valor": p.valor,
                 "Data": p.data,
+                "TransactionCurrency": "BRL",
             }
             for p in parcelas
         ]

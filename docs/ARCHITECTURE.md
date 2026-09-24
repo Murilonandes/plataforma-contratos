@@ -236,6 +236,7 @@ Default proposto para **BRF1** (`TODO(decisão #11)` — confirmar com SD/Sysfé
 **Formato:**
 - **MaxLength:** conforme o metadata. Destaque: `SalesContractItemText` tem no máximo 40.
 - **`RequestedQuantity`:** 3 casas decimais.
+- **Moeda:** `TransactionCurrency` do cabeçalho precisa estar na política da sales org (`currency_not_allowed`; sales org sem política: `sales_org_not_configured`), e itens e parcelas usam a mesma moeda (`currency_mismatch`; item vazio herda a do cabeçalho). A política é um valor imutável passado ao `Contract.criar` (`domain/politica.py`); default BRF1 só com BRL (`TODO(decisão #15)`), carregado de config na Fase 3.
 - **Sinal:** `RequestedQuantity` > 0; na parcela, `Parcela`, `Porcentagem` e `Valor` > 0 (o VO barra, além de `calcular_parcelas`); `ConditionRateValue` aceita **qualquer sinal** (descontos), `TODO(decisão #14)`: a SD confirma quais `ConditionType` podem ser negativos (validação por sales org no caso de uso).
 - **`ConditionRateValue`:** até 9 casas. Normalizar para 2 casas quando for BRL (confirmar).
 - **Parceiros:** no máximo um por `PartnerFunction`.
@@ -350,6 +351,7 @@ Cobertura mínima de 90% em `domain/` e `application/`. Nas outras camadas não 
 | 12 | Datas base das parcelas precisam ser estritamente crescentes? (hoje o domínio rejeita data igual ou anterior à da parcela anterior) | SD/Comercial | Validação de parcelas (§8) |
 | 13 | Formato do número do contrato SAP (`SalesContract`/VBELN): o domínio normaliza para 10 dígitos com zeros à esquerda; confirmar com a 1ª resposta 201 real em DEV (vem com zeros? só dígitos?) | SD / 1º teste DEV | Validação de `SAP_201`/`RECONCILIAR_PARA_CRIADO` (§4) |
 | 14 | Quais `ConditionType` podem ter `ConditionRateValue` negativo (descontos/abatimentos)? Hoje o domínio aceita qualquer sinal em qualquer condição | SD | Validação de preço por sales org no caso de uso (§8) |
+| 15 | Existe contrato em moeda diferente de BRL (ex.: USD)? Hoje só BRL, e cabeçalho, itens e parcelas têm a mesma moeda | Comercial | Política por sales org (§8); `Valor` com `Scale=variable` |
 
 ## 15. Revisitar quando crescer
 

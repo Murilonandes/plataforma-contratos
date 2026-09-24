@@ -53,6 +53,9 @@ class ErrorCode(StrEnum):
     NOT_APPLICABLE = "not_applicable"
     INSTALLMENT_OUT_OF_SEQUENCE = "installment_out_of_sequence"
     INSTALLMENT_PERCENT_SUM = "installment_percent_sum"
+    CURRENCY_NOT_ALLOWED = "currency_not_allowed"
+    CURRENCY_MISMATCH = "currency_mismatch"
+    SALES_ORG_NOT_CONFIGURED = "sales_org_not_configured"
     DUPLICATE_PARTNER_FUNCTION = "duplicate_partner_function"
     PARTNER_IDENTIFIER_REQUIRED = "partner_identifier_required"
     UNKNOWN_FIELD = "unknown_field"
@@ -107,6 +110,18 @@ MENSAGENS: Final[Mapping[ErrorCode, tuple[str, tuple[str, ...]]]] = MappingProxy
         ErrorCode.INSTALLMENT_PERCENT_SUM: (
             "a soma das porcentagens das parcelas deve ser 100.0000, e {soma}",
             ("soma",),
+        ),
+        ErrorCode.CURRENCY_NOT_ALLOWED: (
+            "moeda '{moeda}' nao permitida para a organizacao de vendas (permitidas: {permitidas})",
+            ("moeda", "permitidas"),
+        ),
+        ErrorCode.CURRENCY_MISMATCH: (
+            "campo '{campo}' deve ser '{esperado}' (moeda do cabecalho), veio '{recebido}'",
+            ("esperado", "recebido"),
+        ),
+        ErrorCode.SALES_ORG_NOT_CONFIGURED: (
+            "organizacao de vendas '{sales_org}' sem configuracao na plataforma",
+            ("sales_org",),
         ),
         ErrorCode.DUPLICATE_PARTNER_FUNCTION: (
             "parceiro duplicado para funcao '{funcao}'",
@@ -221,6 +236,10 @@ class ErrorCollector:
 
     def __bool__(self) -> bool:
         return bool(self._erros)
+
+    def tem_erro(self, path: str) -> bool:
+        """Ja existe erro exatamente neste path (regras nao empilham erro sobre ele)."""
+        return any(e.path == path for e in self._erros)
 
     def levantar_se_houver(self) -> None:
         if self._erros:

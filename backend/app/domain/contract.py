@@ -44,7 +44,8 @@ from typing import Any, Final
 
 from app.domain.errors import ErrorCode, ErrorCollector, campo, indice
 from app.domain.money import quantize_brl, quantize_pct, quantize_qty, quantize_rate
-from app.domain.rules import validar_parcelas, validar_regras
+from app.domain.politica import POLITICA_PADRAO, PoliticaSalesOrg
+from app.domain.rules import validar_moedas, validar_parcelas, validar_regras
 
 
 class Tipo(Enum):
@@ -330,6 +331,11 @@ def _elementos(
     return resultado
 
 
+def _sem_erro(col: ErrorCollector, path: str, valor: str) -> str:
+    """Valor para as regras; vazio se o campo ja tem erro proprio (nao empilha)."""
+    return "" if col.tem_erro(path) else valor
+
+
 def _recebidos(dados: Mapping[str, object], navegacao: str) -> int | None:
     """Quantos elementos vieram (validos ou nao); ``None`` se nem e lista."""
     bruto = dados.get(navegacao)
@@ -487,7 +493,12 @@ class Contract:
             _checar_tupla(self, attr, cls)
 
     @classmethod
-    def criar(cls, dados: Mapping[str, object]) -> Contract:
+    def criar(
+        cls,
+        dados: Mapping[str, object],
+        *,
+        politica: Mapping[str, PoliticaSalesOrg] = POLITICA_PADRAO,
+    ) -> Contract:
         """Valida o contrato inteiro, levanta uma vez com todos os erros, e so entao constroi."""
         if not isinstance(dados, Mapping):
             raise TypeError("Contract.criar espera um Mapping (payload do contrato)")
@@ -496,6 +507,7 @@ class Contract:
         header = _validar_entidade(dados, CABECALHO, col, "", navs)
 
         itens: list[dict[str, Any]] = []
+        moedas: list[tuple[str, str]] = []
         for path, el in _elementos(dados, "to_Item", col, ""):
             item = _validar_entidade(el, ITEM, col, path, frozenset({"to_PricingElement"}))
             item["pricing"] = [
@@ -503,6 +515,7 @@ class Contract:
                 for pp, p in _elementos(el, "to_PricingElement", col, path)
             ]
             itens.append(item)
+            moedas.append((path, item["transaction_currency"]))
 
         parceiros: list[dict[str, Any]] = []
         funcoes: list[tuple[str, str]] = []
@@ -534,6 +547,19 @@ class Contract:
                     for (p, _), v in zip(elementos_parcela, parcelas, strict=True)
                 ],
                 recebidas=_recebidos(dados, "to_FormPag"),
+            ),
+            prefixo="",
+        )
+        moedas += [
+            (p, v["transaction_currency"])
+            for (p, _), v in zip(elementos_parcela, parcelas, strict=True)
+        ]
+        col.incorporar(
+            validar_moedas(
+                sales_org=_sem_erro(col, "SalesOrganization", header["sales_organization"]),
+                moeda=_sem_erro(col, "TransactionCurrency", header["transaction_currency"]),
+                outras=[(p, _sem_erro(col, campo(p, "TransactionCurrency"), m)) for p, m in moedas],
+                politica=politica,
             ),
             prefixo="",
         )

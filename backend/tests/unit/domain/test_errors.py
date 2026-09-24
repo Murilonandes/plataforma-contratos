@@ -168,6 +168,24 @@ def test_field_error_monta_mensagem_em_pt_br_a_partir_do_code() -> None:
             {"soma": "99.9999"},
             "a soma das porcentagens das parcelas deve ser 100.0000, e 99.9999",
         ),
+        (
+            "TransactionCurrency",
+            ErrorCode.CURRENCY_NOT_ALLOWED,
+            {"moeda": "USD", "permitidas": "BRL"},
+            "moeda 'USD' nao permitida para a organizacao de vendas (permitidas: BRL)",
+        ),
+        (
+            "to_Item[0].TransactionCurrency",
+            ErrorCode.CURRENCY_MISMATCH,
+            {"esperado": "BRL", "recebido": "USD"},
+            "campo 'TransactionCurrency' deve ser 'BRL' (moeda do cabecalho), veio 'USD'",
+        ),
+        (
+            "SalesOrganization",
+            ErrorCode.SALES_ORG_NOT_CONFIGURED,
+            {"sales_org": "XX01"},
+            "organizacao de vendas 'XX01' sem configuracao na plataforma",
+        ),
     ],
 )
 def test_mensagens_exatas(
@@ -322,6 +340,9 @@ _PARAMS_EXEMPLO: dict[ErrorCode, dict[str, object]] = {
     ErrorCode.INVALID_FORMAT: {"formato": "somente digitos"},
     ErrorCode.INSTALLMENT_OUT_OF_SEQUENCE: {"esperado": 2},
     ErrorCode.INSTALLMENT_PERCENT_SUM: {"soma": "99.9999"},
+    ErrorCode.CURRENCY_NOT_ALLOWED: {"moeda": "USD", "permitidas": "BRL"},
+    ErrorCode.CURRENCY_MISMATCH: {"esperado": "BRL", "recebido": "USD"},
+    ErrorCode.SALES_ORG_NOT_CONFIGURED: {"sales_org": "XX01"},
 }
 
 
@@ -346,3 +367,12 @@ def test_mensagem_nao_cita_indice_base_0(code: ErrorCode, path: str) -> None:
 def test_erro_no_elemento_inteiro_usa_o_nome_da_lista_sem_indice() -> None:
     erro = FieldError.criar("to_Partner[1]", ErrorCode.PARTNER_IDENTIFIER_REQUIRED)
     assert erro.message == "campo 'to_Partner' precisa de ao menos um identificador de parceiro"
+
+
+def test_coletor_sabe_se_ha_erro_num_path_exato() -> None:
+    col = ErrorCollector()
+    col.adicionar("to_Item[0].Material", ErrorCode.REQUIRED)
+    assert col.tem_erro("to_Item[0].Material")
+    assert not col.tem_erro("to_Item[0]")
+    assert not col.tem_erro("to_Item[1].Material")
+    assert not col.tem_erro("Material")

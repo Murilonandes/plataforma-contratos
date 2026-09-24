@@ -15,6 +15,7 @@ import pytest
 
 from app.domain.contract import Contract
 from app.domain.errors import DomainValidationError, ErrorCode, FieldError
+from app.domain.politica import POLITICA_PADRAO, PoliticaSalesOrg
 from app.domain.rules import validar_regras
 from tests.unit.domain._referencias_sap import payload_exemplo_como_entrada
 
@@ -312,3 +313,122 @@ def test_violacoes_de_parcela_acumulam() -> None:
         ("to_FormPag", ErrorCode.INSTALLMENT_PERCENT_SUM, {"soma": "67.6667"}),
         ("to_FormPag[2].Data", ErrorCode.DATES_NOT_INCREASING, {}),
     ]
+
+
+# ---- Moeda por sales org (M2, TODO(decisao #11/#15)) -------------------------
+
+
+def test_politica_padrao_e_brf1_so_brl_e_imutavel() -> None:
+    assert dict(POLITICA_PADRAO) == {"BRF1": PoliticaSalesOrg(moedas=frozenset({"BRL"}))}
+    with pytest.raises(TypeError):
+        POLITICA_PADRAO["XX01"] = PoliticaSalesOrg(moedas=frozenset({"USD"}))  # type: ignore[index]
+
+
+def test_moeda_fora_da_politica() -> None:
+    dados = payload_exemplo_como_entrada()
+    dados["TransactionCurrency"] = "USD"
+    for el in (*dados["to_Item"], *dados["to_FormPag"]):
+        el["TransactionCurrency"] = "USD"
+    assert _erros(dados) == [
+        (
+            "TransactionCurrency",
+            ErrorCode.CURRENCY_NOT_ALLOWED,
+            {"moeda": "USD", "permitidas": "BRL"},
+        )
+    ]
+
+
+def test_sales_org_sem_configuracao() -> None:
+    dados = payload_exemplo_como_entrada()
+    dados["SalesOrganization"] = "XX01"
+    assert _erros(dados) == [
+        ("SalesOrganization", ErrorCode.SALES_ORG_NOT_CONFIGURED, {"sales_org": "XX01"})
+    ]
+
+
+def test_politica_injetada_permite_outra_moeda() -> None:
+    dados = payload_exemplo_como_entrada()
+    dados["TransactionCurrency"] = "USD"
+    for el in (*dados["to_Item"], *dados["to_FormPag"]):
+        el["TransactionCurrency"] = "USD"
+    politica = {"BRF1": PoliticaSalesOrg(moedas=frozenset({"BRL", "USD"}))}
+    assert Contract.criar(dados, politica=politica).header.transaction_currency == "USD"
+
+
+def test_permitidas_em_ordem_alfabetica_na_mensagem() -> None:
+    dados = payload_exemplo_como_entrada()
+    dados["TransactionCurrency"] = "JPY"
+    for el in (*dados["to_Item"], *dados["to_FormPag"]):
+        el["TransactionCurrency"] = "JPY"
+    politica = {"BRF1": PoliticaSalesOrg(moedas=frozenset({"USD", "BRL", "EUR"}))}
+    with pytest.raises(DomainValidationError) as exc:
+        Contract.criar(dados, politica=politica)
+    assert [dict(e.params) for e in exc.value.errors] == [
+        {"moeda": "JPY", "permitidas": "BRL, EUR, USD"}
+    ]
+
+
+@pytest.mark.parametrize(("lista", "i"), [("to_Item", 0), ("to_FormPag", 0), ("to_FormPag", 2)])
+def test_moeda_diferente_da_do_cabecalho(lista: str, i: int) -> None:
+    dados = payload_exemplo_como_entrada()
+    dados[lista][i]["TransactionCurrency"] = "USD"
+    assert _erros(dados) == [
+        (
+            f"{lista}[{i}].TransactionCurrency",
+            ErrorCode.CURRENCY_MISMATCH,
+            {"esperado": "BRL", "recebido": "USD"},
+        )
+    ]
+
+
+def test_moeda_do_item_vazia_herda_a_do_cabecalho() -> None:
+    """TransactionCurrency do item nao e Mandatory no metadata: vazio e aceito."""
+    dados = payload_exemplo_como_entrada()
+    dados["to_Item"][0]["TransactionCurrency"] = ""
+    assert Contract.criar(dados).items[0].transaction_currency == ""
+
+
+def test_sem_moeda_no_cabecalho_nao_empilha_erro_de_moeda() -> None:
+    dados = payload_exemplo_como_entrada()
+    dados["TransactionCurrency"] = ""
+    assert _erros(dados) == [("TransactionCurrency", ErrorCode.REQUIRED, {})]
+
+
+def test_sem_sales_org_nao_empilha_erro_de_configuracao() -> None:
+    dados = payload_exemplo_como_entrada()
+    dados["SalesOrganization"] = ""
+    assert _erros(dados) == [("SalesOrganization", ErrorCode.REQUIRED, {})]
+
+
+def test_sales_org_sem_config_ainda_confere_divergencia_de_moeda() -> None:
+    dados = payload_exemplo_como_entrada()
+    dados["SalesOrganization"] = "XX01"
+    dados["to_Item"][0]["TransactionCurrency"] = "USD"
+    assert _erros(dados) == [
+        ("SalesOrganization", ErrorCode.SALES_ORG_NOT_CONFIGURED, {"sales_org": "XX01"}),
+        (
+            "to_Item[0].TransactionCurrency",
+            ErrorCode.CURRENCY_MISMATCH,
+            {"esperado": "BRL", "recebido": "USD"},
+        ),
+    ]
+
+
+@pytest.mark.parametrize(
+    ("onde", "valor", "path"),
+    [
+        ((), ("SalesOrganization", "BRF12"), "SalesOrganization"),
+        ((), ("TransactionCurrency", "BRLX"), "TransactionCurrency"),
+        (("to_Item", 0), ("TransactionCurrency", "USDX"), "to_Item[0].TransactionCurrency"),
+        (("to_FormPag", 1), ("TransactionCurrency", "USDX"), "to_FormPag[1].TransactionCurrency"),
+    ],
+)
+def test_campo_de_moeda_com_erro_proprio_nao_empilha_regra(
+    onde: tuple[Any, ...], valor: tuple[str, str], path: str
+) -> None:
+    dados = payload_exemplo_como_entrada()
+    alvo: Any = dados
+    for passo in onde:
+        alvo = alvo[passo]
+    alvo[valor[0]] = valor[1]
+    assert [e[0] for e in _erros(dados)] == [path]

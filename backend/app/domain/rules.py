@@ -18,16 +18,21 @@ continua levantando UMA vez, com erros de campo e de regra juntos.
   presentes estritamente crescentes (``dates_not_increasing``, ``TODO(decisao #12)``).
   Presenca e sinal de ``Porcentagem``/``Valor`` ficam no VO (``nao_nulo``, ``positivo``).
   Campo com erro proprio (``None`` aqui) nao entra nas regras, para nao empilhar erro.
+- Moeda (``validar_moedas``): a do cabecalho precisa estar na politica da sales
+  org (``currency_not_allowed``; sales org sem politica: ``sales_org_not_configured``),
+  e itens e parcelas usam a mesma (``currency_mismatch``). Moeda vazia no item
+  herda a do cabecalho (nao e Mandatory no metadata). ``TODO(decisao #15)``.
 """
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from datetime import date
 from decimal import Decimal
 from typing import Final
 
 from app.domain.errors import ErrorCode, FieldError, campo
+from app.domain.politica import PoliticaSalesOrg
 
 MAX_PARCELAS: Final = 36  # tambem o limite de calcular_parcelas (installments.py)
 _CEM_POR_CENTO: Final = Decimal("100.0000")
@@ -100,4 +105,43 @@ def validar_parcelas(
         if anterior is not None and data is not None and data <= anterior:
             erros.append(FieldError.criar(campo(path, "Data"), ErrorCode.DATES_NOT_INCREASING))
         anterior = data
+    return tuple(erros)
+
+
+def validar_moedas(
+    *,
+    sales_org: str,
+    moeda: str,
+    outras: Sequence[tuple[str, str]],
+    politica: Mapping[str, PoliticaSalesOrg],
+) -> tuple[FieldError, ...]:
+    """``outras``: ``(path do elemento, TransactionCurrency)`` de itens e parcelas."""
+    erros: list[FieldError] = []
+    config = politica.get(sales_org)
+    if sales_org and config is None:
+        erros.append(
+            FieldError.criar(
+                "SalesOrganization", ErrorCode.SALES_ORG_NOT_CONFIGURED, sales_org=sales_org
+            )
+        )
+    elif config is not None and moeda and moeda not in config.moedas:
+        erros.append(
+            FieldError.criar(
+                "TransactionCurrency",
+                ErrorCode.CURRENCY_NOT_ALLOWED,
+                moeda=moeda,
+                permitidas=", ".join(sorted(config.moedas)),
+            )
+        )
+    if moeda:
+        for path, outra in outras:
+            if outra and outra != moeda:
+                erros.append(
+                    FieldError.criar(
+                        campo(path, "TransactionCurrency"),
+                        ErrorCode.CURRENCY_MISMATCH,
+                        esperado=moeda,
+                        recebido=outra,
+                    )
+                )
     return tuple(erros)
