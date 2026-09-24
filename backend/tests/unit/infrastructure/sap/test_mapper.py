@@ -505,6 +505,8 @@ def _contratos(draw: st.DrawFn) -> Contract:
     # Politica padrao: BRF1 so com BRL; item sem moeda herda a do cabecalho.
     dados = draw(_entidade(CABECALHO))
     dados["SalesOrganization"], dados["TransactionCurrency"] = "BRF1", "BRL"
+    # Z999 exige ao menos uma parcela (politica padrao da BRF1)
+    dados["CustomerPaymentTerms"] = draw(st.sampled_from(["", "Z001", "Z999"]))
     itens = draw(st.lists(_entidade(ITEM), min_size=1, max_size=3))
     for item in itens:
         item["TransactionCurrency"] = draw(st.sampled_from(["", "BRL"]))
@@ -515,7 +517,7 @@ def _contratos(draw: st.DrawFn) -> Contract:
         {**draw(_entidade(PARCEIRO)), "PartnerFunction": f, "Customer": "1"} for f in funcoes
     ]
     dados["to_PricingElement"] = draw(st.lists(_entidade(PRECO), max_size=3))
-    n = draw(st.integers(0, 4))
+    n = draw(st.integers(1 if dados["CustomerPaymentTerms"] == "Z999" else 0, 4))
     if n:
         pesos = draw(st.lists(st.integers(1, 10), min_size=n, max_size=n))
         centavos = draw(st.integers(-(-sum(pesos) // min(pesos)), 10**9))

@@ -22,6 +22,9 @@ continua levantando UMA vez, com erros de campo e de regra juntos.
   org (``currency_not_allowed``; sales org sem politica: ``sales_org_not_configured``),
   e itens e parcelas usam a mesma (``currency_mismatch``). Moeda vazia no item
   herda a do cabecalho (nao e Mandatory no metadata). ``TODO(decisao #15)``.
+- Parcelas obrigatorias de negocio (``validar_parcelas_de_negocio``): condicao de
+  pagamento listada na politica exige ao menos uma parcela (``min_items``); se a
+  politica pede, toda parcela precisa de ``Data`` (``required``). ``TODO(decisao #16)``.
 """
 
 from __future__ import annotations
@@ -146,4 +149,29 @@ def validar_moedas(
                         recebido=outra,
                     )
                 )
+    return tuple(erros)
+
+
+def validar_parcelas_de_negocio(
+    *,
+    condicao: str,
+    datas: Sequence[tuple[str, date | None]],
+    recebidas: int | None,
+    config: PoliticaSalesOrg | None,
+) -> tuple[FieldError, ...]:
+    """``datas``: ``(path, Data)`` das parcelas cuja Data nao tem erro proprio.
+
+    ``config`` ``None`` (sales org sem politica ou com erro): nada a validar aqui.
+    """
+    if config is None:
+        return ()
+    erros: list[FieldError] = []
+    if recebidas == 0 and condicao in config.condicoes_com_parcelas:
+        erros.append(FieldError.criar("to_FormPag", ErrorCode.MIN_ITEMS, min=1))
+    if config.data_da_parcela_obrigatoria:
+        erros.extend(
+            FieldError.criar(campo(path, "Data"), ErrorCode.REQUIRED)
+            for path, data in datas
+            if data is None
+        )
     return tuple(erros)

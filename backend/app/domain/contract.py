@@ -55,7 +55,12 @@ from app.domain.money import (
     sem_zero_negativo,
 )
 from app.domain.politica import POLITICA_PADRAO, PoliticaSalesOrg
-from app.domain.rules import validar_moedas, validar_parcelas, validar_regras
+from app.domain.rules import (
+    validar_moedas,
+    validar_parcelas,
+    validar_parcelas_de_negocio,
+    validar_regras,
+)
 from app.domain.texto import invalido_em_linha, invalido_em_multilinha
 
 
@@ -565,6 +570,20 @@ class Contract:
                 moeda=_sem_erro(col, "TransactionCurrency", header["transaction_currency"]),
                 outras=[(p, _sem_erro(col, campo(p, "TransactionCurrency"), m)) for p, m in moedas],
                 politica=politica,
+            ),
+            prefixo="",
+        )
+        sales_org = _sem_erro(col, "SalesOrganization", header["sales_organization"])
+        col.incorporar(
+            validar_parcelas_de_negocio(
+                condicao=_sem_erro(col, "CustomerPaymentTerms", header["customer_payment_terms"]),
+                datas=[
+                    (p, v["data"])
+                    for (p, _), v in zip(elementos_parcela, parcelas, strict=True)
+                    if not col.tem_erro(campo(p, "Data"))
+                ],
+                recebidas=_recebidos(dados, "to_FormPag"),
+                config=politica.get(sales_org) if sales_org else None,
             ),
             prefixo="",
         )

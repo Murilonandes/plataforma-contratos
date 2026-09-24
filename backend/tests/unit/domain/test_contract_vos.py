@@ -18,6 +18,7 @@ import pytest
 
 from app.domain.contract import Contract, Header, Installment, Item, Partner, PricingElement, Text
 from app.domain.errors import DomainValidationError, ErrorCode
+from app.domain.politica import PoliticaSalesOrg
 from tests.unit.domain._referencias_sap import payload_exemplo_como_entrada
 
 
@@ -270,7 +271,8 @@ def test_opcional_ausente_vira_default() -> None:
     for chave in ("SalesOffice", "CodTaxa", "CustomerPurchaseOrderDate", "to_Text", "to_Partner"):
         del dados[chave]
     del dados["to_FormPag"][0]["Data"]
-    c = Contract.criar(dados)
+    # sem a obrigatoriedade de negocio da BRF1 (Data da parcela): so o VO
+    c = Contract.criar(dados, politica={"BRF1": PoliticaSalesOrg(moedas=frozenset({"BRL"}))})
     assert c.header.sales_office == ""
     assert c.header.cod_taxa == ""
     assert c.header.customer_purchase_order_date is None

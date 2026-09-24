@@ -197,10 +197,13 @@ def test_payload_exemplo_tem_parcelas_validas() -> None:
     assert len(Contract.criar(payload_exemplo_como_entrada()).installments) == 3
 
 
-def test_contrato_sem_parcelas_e_aceito() -> None:
+_SO_MOEDA = {"BRF1": PoliticaSalesOrg(moedas=frozenset({"BRL"}))}
+
+
+def test_contrato_sem_parcelas_e_aceito_sem_obrigatoriedade_de_negocio() -> None:
     dados = payload_exemplo_como_entrada()
     dados["to_FormPag"] = []
-    assert Contract.criar(dados).installments == ()
+    assert Contract.criar(dados, politica=_SO_MOEDA).installments == ()
 
 
 @pytest.mark.parametrize("campo", ["Porcentagem", "Valor"])
@@ -291,7 +294,7 @@ def test_data_ausente_nao_e_comparada() -> None:
     parcelas = _parcelas(dados)
     del parcelas[1]["Data"]
     parcelas[2]["Data"] = parcelas[0]["Data"] + timedelta(days=1)
-    assert Contract.criar(dados).installments[1].data is None
+    assert Contract.criar(dados, politica=_SO_MOEDA).installments[1].data is None
 
 
 def test_limite_de_36_parcelas() -> None:
@@ -319,7 +322,13 @@ def test_violacoes_de_parcela_acumulam() -> None:
 
 
 def test_politica_padrao_e_brf1_so_brl_e_imutavel() -> None:
-    assert dict(POLITICA_PADRAO) == {"BRF1": PoliticaSalesOrg(moedas=frozenset({"BRL"}))}
+    assert dict(POLITICA_PADRAO) == {
+        "BRF1": PoliticaSalesOrg(
+            moedas=frozenset({"BRL"}),
+            condicoes_com_parcelas=frozenset({"Z999"}),
+            data_da_parcela_obrigatoria=True,
+        )
+    }
     with pytest.raises(TypeError):
         POLITICA_PADRAO["XX01"] = PoliticaSalesOrg(moedas=frozenset({"USD"}))  # type: ignore[index]
 
@@ -432,3 +441,71 @@ def test_campo_de_moeda_com_erro_proprio_nao_empilha_regra(
         alvo = alvo[passo]
     alvo[valor[0]] = valor[1]
     assert [e[0] for e in _erros(dados)] == [path]
+
+
+# ---- Parcelas obrigatorias de negocio (BRF1: condicao Z999, TODO(decisao #16)) ---
+
+
+def test_politica_padrao_exige_parcelas_na_z999_e_data_em_cada_parcela() -> None:
+    brf1 = POLITICA_PADRAO["BRF1"]
+    assert brf1.condicoes_com_parcelas == frozenset({"Z999"})
+    assert brf1.data_da_parcela_obrigatoria is True
+
+
+@pytest.mark.parametrize("sem_parcelas", ["ausente", None, []])
+def test_z999_sem_parcelas(sem_parcelas: object) -> None:
+    dados = payload_exemplo_como_entrada()
+    assert dados["CustomerPaymentTerms"] == "Z999"
+    if sem_parcelas == "ausente":
+        del dados["to_FormPag"]
+    else:
+        dados["to_FormPag"] = sem_parcelas
+    assert _erros(dados) == [("to_FormPag", ErrorCode.MIN_ITEMS, {"min": 1})]
+
+
+@pytest.mark.parametrize("condicao", ["Z001", ""])
+def test_outra_condicao_aceita_contrato_sem_parcelas(condicao: str) -> None:
+    dados = payload_exemplo_como_entrada()
+    dados["CustomerPaymentTerms"] = condicao
+    dados["to_FormPag"] = []
+    assert Contract.criar(dados).installments == ()
+
+
+@pytest.mark.parametrize("condicao", ["Z999", "Z001"])
+def test_data_obrigatoria_em_toda_parcela_presente(condicao: str) -> None:
+    dados = payload_exemplo_como_entrada()
+    dados["CustomerPaymentTerms"] = condicao
+    del _parcelas(dados)[1]["Data"]
+    _parcelas(dados)[2]["Data"] = None
+    assert _erros(dados) == [
+        ("to_FormPag[1].Data", ErrorCode.REQUIRED, {}),
+        ("to_FormPag[2].Data", ErrorCode.REQUIRED, {}),
+    ]
+
+
+def test_data_com_erro_de_tipo_nao_vira_required() -> None:
+    dados = payload_exemplo_como_entrada()
+    _parcelas(dados)[1]["Data"] = "2026-10-04"
+    assert _erros(dados) == [("to_FormPag[1].Data", ErrorCode.INVALID_TYPE, {"tipo": "data"})]
+
+
+def test_condicao_com_erro_propio_nao_empilha_min_items() -> None:
+    dados = payload_exemplo_como_entrada()
+    dados["CustomerPaymentTerms"] = "Z9999"  # > 4
+    dados["to_FormPag"] = []
+    assert _erros(dados) == [("CustomerPaymentTerms", ErrorCode.MAX_LENGTH, {"max": 4})]
+
+
+def test_sales_org_sem_politica_nao_empilha_obrigatoriedade_de_parcela() -> None:
+    dados = payload_exemplo_como_entrada()
+    dados["SalesOrganization"] = "XX01"
+    dados["to_FormPag"] = []
+    assert _erros(dados) == [
+        ("SalesOrganization", ErrorCode.SALES_ORG_NOT_CONFIGURED, {"sales_org": "XX01"})
+    ]
+
+
+def test_to_formpag_que_nao_e_lista_nao_empilha_min_items() -> None:
+    dados = payload_exemplo_como_entrada()
+    dados["to_FormPag"] = "x"
+    assert _erros(dados) == [("to_FormPag", ErrorCode.INVALID_TYPE, {"tipo": "lista"})]

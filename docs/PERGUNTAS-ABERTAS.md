@@ -131,6 +131,16 @@ no 1º POST real em DEV; perguntar antes evita tentativa e erro.
 - **Onde:** `backend/app/domain/politica.py` (`POLITICA_PADRAO`), `backend/app/domain/rules.py`
   (`validar_moedas`).
 
+### #16 — Contrato sem parcelas existe? (com a SD)
+- **Pergunta:** existe contrato de venda sem parcelas (`to_FormPag` vazio)? Em quais condições de
+  pagamento? A `Data` base é sempre obrigatória em cada parcela?
+- **Contexto:** o SAP aceita contrato sem parcelas e parcela sem `Data`. Se o processo comercial
+  exige, a plataforma tem que barrar antes de enfileirar.
+- **Default atual:** na BRF1, `CustomerPaymentTerms` **`Z999`** exige ao menos uma parcela; toda
+  parcela presente exige `Data`, em qualquer condição. Outras condições aceitam contrato sem parcelas.
+- **Onde:** `backend/app/domain/politica.py` (`POLITICA_PADRAO`), `backend/app/domain/rules.py`
+  (`validar_parcelas_de_negocio`).
+
 ## Basis
 
 ### #8 — Leitura para reconciliar contratos `INCERTO`
