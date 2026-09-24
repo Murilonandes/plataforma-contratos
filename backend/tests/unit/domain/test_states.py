@@ -535,3 +535,51 @@ def test_transicao_nao_tem_timestamp() -> None:
         "sap_contract_number",
         "detalhe",
     ]
+
+
+# ---- Caracteres invalidos (B4: o Postgres recusa \x00 em text) ---------------
+
+_CONTROLE = ["\x00", "\x07", "\x1b", "\x7f", "\x85", chr(0xD800), chr(0xDFFF)]
+_ids_char = lambda c: f"U+{ord(c):04X}"  # noqa: E731
+
+
+@pytest.mark.parametrize("ruim", [*_CONTROLE, "\t", "\n", "\r"], ids=_ids_char)
+def test_identifier_recusa_controle_e_surrogate(ruim: str) -> None:
+    ator = Ator(K.USER, f"oid{ruim}123")
+    assert _erros(S.RASCUNHO, E.SUBMETER, ator=ator) == [
+        ("ator.identifier", ErrorCode.INVALID_CHARACTERS, {})
+    ]
+
+
+@pytest.mark.parametrize("ruim", _CONTROLE, ids=_ids_char)
+@pytest.mark.parametrize(("de", "evento"), _COM_JUSTIFICATIVA + _JUSTIFICATIVA_OPCIONAL, ids=_ids)
+def test_justificativa_recusa_controle_e_surrogate(de: S, evento: E, ruim: str) -> None:
+    texto = f"Conferido na VA43{ruim} com o comercial."
+    assert _erros(de, evento, **_com(de, evento, justificativa=texto)) == [
+        ("justificativa", ErrorCode.INVALID_CHARACTERS, {})
+    ]
+
+
+def test_justificativa_aceita_tab_e_quebra_de_linha() -> None:
+    texto = "Conferido na VA43.\r\nContrato 40001234\tnao existe."
+    t = transition(S.INCERTO, E.CANCELAR, ator=_ATORES[K.ADMIN], justificativa=texto)
+    assert t.justificativa == texto
+
+
+def test_caractere_invalido_na_justificativa_vem_antes_do_tamanho() -> None:
+    assert _erros(S.INCERTO, E.CANCELAR, ator=_ATORES[K.ADMIN], justificativa="curta\x00") == [
+        ("justificativa", ErrorCode.INVALID_CHARACTERS, {})
+    ]
+
+
+@pytest.mark.parametrize("ruim", [*_CONTROLE, "\t", "\n", "\r"], ids=_ids_char)
+def test_valor_texto_do_detalhe_recusa_controle_e_surrogate(ruim: str) -> None:
+    assert _erros_detalhe({"erro_class": f"Connect{ruim}Error"}) == [
+        ("detalhe.erro_class", ErrorCode.INVALID_CHARACTERS, {})
+    ]
+
+
+def test_caractere_invalido_no_detalhe_vem_antes_do_tamanho() -> None:
+    assert _erros_detalhe({"erro_class": "\x00" + "x" * 300}) == [
+        ("detalhe.erro_class", ErrorCode.INVALID_CHARACTERS, {})
+    ]

@@ -38,7 +38,6 @@ Strings sem MaxLength no metadata tem teto provisorio (``TODO(decisao #5)``):
 
 from __future__ import annotations
 
-import unicodedata
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import date, datetime
@@ -57,6 +56,7 @@ from app.domain.money import (
 )
 from app.domain.politica import POLITICA_PADRAO, PoliticaSalesOrg
 from app.domain.rules import validar_moedas, validar_parcelas, validar_regras
+from app.domain.texto import tem_caractere_invalido
 
 
 class Tipo(Enum):
@@ -213,17 +213,6 @@ def _digitos_inteiros(v: Decimal) -> int:
     return v.adjusted() + 1 if v else 0
 
 
-_QUEBRAS_PERMITIDAS: Final = frozenset("\t\n\r")
-
-
-def _caractere_invalido(ch: str, *, multilinha: bool) -> bool:
-    """Controle (Cc: C0, DEL, C1) e surrogate isolado (Cs); tab/quebra so em multilinha."""
-    categoria = unicodedata.category(ch)
-    if categoria == "Cs":
-        return True
-    return categoria == "Cc" and not (multilinha and ch in _QUEBRAS_PERMITIDAS)
-
-
 def _validar_texto(c: Campo, bruto: object, path: str, col: ErrorCollector) -> str:
     if bruto is None:
         valor = ""
@@ -236,7 +225,7 @@ def _validar_texto(c: Campo, bruto: object, path: str, col: ErrorCollector) -> s
         valor = valor.upper()
     if c.obrigatorio and not valor:
         col.adicionar(path, ErrorCode.REQUIRED)
-    elif any(_caractere_invalido(ch, multilinha=c.multilinha) for ch in valor):
+    elif tem_caractere_invalido(valor, multilinha=c.multilinha):
         col.adicionar(path, ErrorCode.INVALID_CHARACTERS)
     elif c.max_len is not None and len(valor) > c.max_len:
         col.adicionar(path, ErrorCode.MAX_LENGTH, max=c.max_len)

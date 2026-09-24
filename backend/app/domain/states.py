@@ -24,7 +24,9 @@ Dados por transicao, validados de forma ACUMULADA (uma ``DomainValidationError``
 - ``detalhe``: so worker/system. Mapping com chave snake_case (ate 40) e valor
   ``int`` ou ``str`` (ate 200); gravado como copia imutavel.
 
-String vazia ou so com espacos conta como ausente.
+String vazia ou so com espacos conta como ausente. Caractere de controle ou
+surrogate isolado e ``invalid_characters`` (``texto.py``); tab e quebra de linha
+so na justificativa.
 """
 
 from __future__ import annotations
@@ -37,6 +39,7 @@ from typing import Final
 
 from app.domain.enums import ActorKind, ContractStatus, TransitionEvent
 from app.domain.errors import ErrorCode, ErrorCollector, InvalidTransitionError
+from app.domain.texto import tem_caractere_invalido
 
 JUSTIFICATIVA_MIN: Final = 10
 JUSTIFICATIVA_MAX: Final = 500
@@ -150,6 +153,8 @@ def transition(
     identifier = ator.identifier.strip()
     if not identifier:
         col.adicionar("ator.identifier", ErrorCode.REQUIRED)
+    elif tem_caractere_invalido(identifier, multilinha=False):
+        col.adicionar("ator.identifier", ErrorCode.INVALID_CHARACTERS)
     texto = _justificativa(justificativa, regra, maquina, col)
     numero = _numero_sap(sap_contract_number, regra, col)
     extra = _detalhe(detalhe, maquina, col)
@@ -183,6 +188,8 @@ def _justificativa(bruto: object, regra: Regra, maquina: bool, col: ErrorCollect
             col.adicionar("justificativa", ErrorCode.REQUIRED)
     elif maquina:
         col.adicionar("justificativa", ErrorCode.NOT_APPLICABLE)
+    elif tem_caractere_invalido(valor, multilinha=True):  # texto livre: tab/quebra ok
+        col.adicionar("justificativa", ErrorCode.INVALID_CHARACTERS)
     elif len(valor) < JUSTIFICATIVA_MIN:
         col.adicionar("justificativa", ErrorCode.MIN_LENGTH, min=JUSTIFICATIVA_MIN)
     elif len(valor) > JUSTIFICATIVA_MAX:
@@ -220,6 +227,8 @@ def _detalhe(bruto: object, maquina: bool, col: ErrorCollector) -> Mapping[str, 
             col.adicionar("detalhe", ErrorCode.INVALID_FORMAT, formato=_FORMATO_CHAVE)
         elif type(valor) is not int and not isinstance(valor, str):  # bool e subclasse de int
             col.adicionar(f"detalhe.{chave}", ErrorCode.INVALID_TYPE, tipo="texto ou inteiro")
+        elif isinstance(valor, str) and tem_caractere_invalido(valor, multilinha=False):
+            col.adicionar(f"detalhe.{chave}", ErrorCode.INVALID_CHARACTERS)
         elif isinstance(valor, str) and len(valor) > DETALHE_VALOR_MAX:
             col.adicionar(f"detalhe.{chave}", ErrorCode.MAX_LENGTH, max=DETALHE_VALOR_MAX)
     return MappingProxyType(dict(itens))
