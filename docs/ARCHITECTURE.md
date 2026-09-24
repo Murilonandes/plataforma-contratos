@@ -97,7 +97,7 @@ Estados terminais: `CRIADO`, `CANCELADO`. Editáveis pelo vendedor: `RASCUNHO` e
 - **Ator:** `kind` igual à coluna Ator; `identifier` não vazio.
 - **Justificativa:** com "sim" em `Justif.` é obrigatória. Com "não", é opcional para `user`/`admin` (se vier, é validada e gravada) e **proibida** para `worker`/`system`. Quando vem, tem de 10 a 500 caracteres depois do strip (`"."` e `"ok"` não valem).
 - **`detalhe`:** só `worker`/`system`, para dado técnico estruturado (chave snake_case de até 40 caracteres, valor `int` ou `str` de até 200). Nunca texto livre em `justificativa`.
-- **`sap_contract_number`:** obrigatório em `SAP_201` e `RECONCILIAR_PARA_CRIADO` (até 10, só dígitos, `TODO(decisão #13)`), gravado na forma canônica do VBELN: 10 dígitos com zeros à esquerda (`"40001234"` → `"0040001234"`), para o número vindo do SAP e o digitado na reconciliação serem iguais; proibido nas demais transições.
+- **`sap_contract_number`:** obrigatório em `SAP_201` e `RECONCILIAR_PARA_CRIADO` (até 10 depois do strip, só dígitos, nunca só zeros, `TODO(decisão #13)`), gravado na forma canônica do VBELN: 10 dígitos com zeros à esquerda (`"40001234"` → `"0040001234"`), para o número vindo do SAP e o digitado na reconciliação serem iguais; proibido nas demais transições.
 - String vazia ou só com espaços conta como ausente.
 - O resultado (`Transicao`: `de`, `para`, `evento`, `ator`, `justificativa`, `sap_contract_number`, `detalhe`) é o registro do evento em `contract_events`. O domínio não tem timestamp: `occurred_at` é carimbado pelo caso de uso via porta `Clock`.
 

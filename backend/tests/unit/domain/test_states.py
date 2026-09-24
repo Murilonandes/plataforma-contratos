@@ -367,6 +367,22 @@ def test_numero_sap_normalizado_para_vbeln_canonico(
 
 
 @pytest.mark.parametrize(("de", "evento"), _COM_NUMERO, ids=_ids)
+@pytest.mark.parametrize("numero", ["0", "000", "0000000000", " 00 "])
+def test_numero_sap_so_de_zeros_e_invalido(de: S, evento: E, numero: str) -> None:
+    assert _erros(de, evento, **_com(de, evento, sap_contract_number=numero)) == [
+        ("sap_contract_number", ErrorCode.INVALID_FORMAT, {"formato": "diferente de zero"})
+    ]
+
+
+@pytest.mark.parametrize(("de", "evento"), _COM_NUMERO, ids=_ids)
+def test_tamanho_e_conferido_antes_de_completar_com_zeros(de: S, evento: E) -> None:
+    """11 caracteres e erro mesmo que a forma canonica caiba em 10 (TODO(decisao #13))."""
+    assert _erros(de, evento, **_com(de, evento, sap_contract_number="00040001234")) == [
+        ("sap_contract_number", ErrorCode.MAX_LENGTH, {"max": 10})
+    ]
+
+
+@pytest.mark.parametrize(("de", "evento"), _COM_NUMERO, ids=_ids)
 def test_numero_com_e_sem_zeros_a_esquerda_geram_o_mesmo_registro(de: S, evento: E) -> None:
     curto = transition(de, evento, **_com(de, evento, sap_contract_number="40001234"))
     longo = transition(de, evento, **_com(de, evento, sap_contract_number="0040001234"))
