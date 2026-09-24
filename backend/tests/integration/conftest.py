@@ -40,7 +40,7 @@ def url_servidor() -> Iterator[str]:
     if externo:
         yield externo
         return
-    from testcontainers.postgres import PostgresContainer
+    from testcontainers.community.postgres import PostgresContainer
 
     with PostgresContainer("postgres:16-alpine", driver="asyncpg") as pg:
         yield pg.get_connection_url()
