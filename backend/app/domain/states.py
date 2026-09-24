@@ -39,7 +39,7 @@ from typing import Final
 
 from app.domain.enums import ActorKind, ContractStatus, TransitionEvent
 from app.domain.errors import ErrorCode, ErrorCollector, InvalidTransitionError
-from app.domain.texto import tem_caractere_invalido
+from app.domain.texto import invalido_em_linha, invalido_em_multilinha
 
 JUSTIFICATIVA_MIN: Final = 10
 JUSTIFICATIVA_MAX: Final = 500
@@ -153,7 +153,7 @@ def transition(
     identifier = ator.identifier.strip()
     if not identifier:
         col.adicionar("ator.identifier", ErrorCode.REQUIRED)
-    elif tem_caractere_invalido(identifier, multilinha=False):
+    elif invalido_em_linha(identifier):
         col.adicionar("ator.identifier", ErrorCode.INVALID_CHARACTERS)
     texto = _justificativa(justificativa, regra, maquina, col)
     numero = _numero_sap(sap_contract_number, regra, col)
@@ -188,7 +188,7 @@ def _justificativa(bruto: object, regra: Regra, maquina: bool, col: ErrorCollect
             col.adicionar("justificativa", ErrorCode.REQUIRED)
     elif maquina:
         col.adicionar("justificativa", ErrorCode.NOT_APPLICABLE)
-    elif tem_caractere_invalido(valor, multilinha=True):  # texto livre: tab/quebra ok
+    elif invalido_em_multilinha(valor):  # texto livre: tab/quebra ok
         col.adicionar("justificativa", ErrorCode.INVALID_CHARACTERS)
     elif len(valor) < JUSTIFICATIVA_MIN:
         col.adicionar("justificativa", ErrorCode.MIN_LENGTH, min=JUSTIFICATIVA_MIN)
@@ -227,7 +227,7 @@ def _detalhe(bruto: object, maquina: bool, col: ErrorCollector) -> Mapping[str, 
             col.adicionar("detalhe", ErrorCode.INVALID_FORMAT, formato=_FORMATO_CHAVE)
         elif type(valor) is not int and not isinstance(valor, str):  # bool e subclasse de int
             col.adicionar(f"detalhe.{chave}", ErrorCode.INVALID_TYPE, tipo="texto ou inteiro")
-        elif isinstance(valor, str) and tem_caractere_invalido(valor, multilinha=False):
+        elif isinstance(valor, str) and invalido_em_linha(valor):
             col.adicionar(f"detalhe.{chave}", ErrorCode.INVALID_CHARACTERS)
         elif isinstance(valor, str) and len(valor) > DETALHE_VALOR_MAX:
             col.adicionar(f"detalhe.{chave}", ErrorCode.MAX_LENGTH, max=DETALHE_VALOR_MAX)

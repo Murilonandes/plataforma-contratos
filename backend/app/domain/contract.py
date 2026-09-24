@@ -56,7 +56,7 @@ from app.domain.money import (
 )
 from app.domain.politica import POLITICA_PADRAO, PoliticaSalesOrg
 from app.domain.rules import validar_moedas, validar_parcelas, validar_regras
-from app.domain.texto import tem_caractere_invalido
+from app.domain.texto import invalido_em_linha, invalido_em_multilinha
 
 
 class Tipo(Enum):
@@ -225,7 +225,7 @@ def _validar_texto(c: Campo, bruto: object, path: str, col: ErrorCollector) -> s
         valor = valor.upper()
     if c.obrigatorio and not valor:
         col.adicionar(path, ErrorCode.REQUIRED)
-    elif tem_caractere_invalido(valor, multilinha=c.multilinha):
+    elif (invalido_em_multilinha if c.multilinha else invalido_em_linha)(valor):
         col.adicionar(path, ErrorCode.INVALID_CHARACTERS)
     elif c.max_len is not None and len(valor) > c.max_len:
         col.adicionar(path, ErrorCode.MAX_LENGTH, max=c.max_len)

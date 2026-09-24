@@ -12,15 +12,22 @@ from __future__ import annotations
 import unicodedata
 from typing import Final
 
-_QUEBRAS_PERMITIDAS: Final = frozenset("\t\n\r")
+_NENHUM: Final = frozenset[str]()
+_QUEBRAS: Final = frozenset("\t\n\r")
 
 
-def tem_caractere_invalido(texto: str, *, multilinha: bool) -> bool:
-    return any(_invalido(ch, multilinha=multilinha) for ch in texto)
+def invalido_em_linha(texto: str) -> bool:
+    """Texto de uma linha: nenhum caractere de controle."""
+    return any(_invalido(ch, _NENHUM) for ch in texto)
 
 
-def _invalido(ch: str, *, multilinha: bool) -> bool:
+def invalido_em_multilinha(texto: str) -> bool:
+    """Texto livre: controle so ``\\t``, ``\\n`` e ``\\r``."""
+    return any(_invalido(ch, _QUEBRAS) for ch in texto)
+
+
+def _invalido(ch: str, permitidos: frozenset[str]) -> bool:
     categoria = unicodedata.category(ch)
     if categoria == "Cs":
         return True
-    return categoria == "Cc" and not (multilinha and ch in _QUEBRAS_PERMITIDAS)
+    return categoria == "Cc" and ch not in permitidos
