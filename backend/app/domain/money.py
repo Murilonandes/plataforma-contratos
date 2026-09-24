@@ -1,8 +1,9 @@
 """Quantizacao de dinheiro (BRL), quantidade e percentual.
 
 Regra do projeto: ``Decimal`` sempre, nunca ``float`` (CLAUDE.md). Arredondamento
-``ROUND_HALF_UP`` (meio afasta do zero), explicito em cada chamada: o default do
-modulo ``decimal`` e ``ROUND_HALF_EVEN`` e daria outro resultado nos empates.
+``ROUND_HALF_UP`` (meio afasta do zero), explicito no ``CONTEXTO_DECIMAL`` usado em
+toda operacao: o default do modulo ``decimal`` e ``ROUND_HALF_EVEN`` e daria outro
+resultado nos empates, e o contexto da thread nunca e usado.
 
 - ``BRL`` 2 casas (``Valor`` das parcelas, precos)
 - ``QTY`` 3 casas (``RequestedQuantity``)
@@ -64,8 +65,9 @@ def sem_zero_negativo(v: Decimal) -> Decimal:
 
 
 def _quantize(v: Decimal, quantum: Decimal) -> Decimal:
+    # Arredondamento vem do CONTEXTO_DECIMAL (ROUND_HALF_UP): fonte unica.
     with localcontext(CONTEXTO_DECIMAL):
-        return _ensure_decimal(v).quantize(quantum, rounding=ROUND_HALF_UP)
+        return _ensure_decimal(v).quantize(quantum)
 
 
 def quantize_brl(v: Decimal) -> Decimal:
