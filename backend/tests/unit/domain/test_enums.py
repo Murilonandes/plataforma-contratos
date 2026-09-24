@@ -14,24 +14,12 @@ from __future__ import annotations
 
 import enum
 import inspect
-from pathlib import Path
 
 import pytest
 
 from app.domain import enums
 from app.domain.enums import ActorKind, ContractStatus, TransitionEvent
-
-
-def _achar_architecture() -> Path:
-    """Sobe ate achar docs/ARCHITECTURE.md (funciona tambem dentro de mutants/ do mutmut)."""
-    for pasta in Path(__file__).resolve().parents:
-        candidato = pasta / "docs" / "ARCHITECTURE.md"
-        if candidato.is_file():
-            return candidato
-    raise FileNotFoundError("docs/ARCHITECTURE.md nao encontrado acima de " + __file__)
-
-
-_ARCHITECTURE = _achar_architecture()
+from tests.unit.domain._referencias_arquitetura import linhas_matriz
 
 _ESTADOS = {
     "RASCUNHO",
@@ -65,16 +53,7 @@ _ATORES = {"user", "admin", "worker", "system"}
 
 def _matriz() -> list[tuple[str, str, str, str]]:
     """(de, evento, para, ator) de cada linha da matriz do ARCHITECTURE §4."""
-    texto = _ARCHITECTURE.read_text(encoding="utf-8")
-    inicio = texto.index("**Matriz de transições:**")
-    fim = texto.index("**Total: 21 transições válidas.**")
-    linhas = []
-    for linha in texto[inicio:fim].splitlines():
-        celulas = [c.strip() for c in linha.strip().strip("|").split("|")]
-        if len(celulas) < 4 or celulas[0] in {"De", "---"}:
-            continue
-        linhas.append((celulas[0], celulas[1], celulas[2], celulas[3]))
-    return linhas
+    return [(ln.de, ln.evento, ln.para, ln.ator) for ln in linhas_matriz()]
 
 
 # ---- Conjuntos exatos --------------------------------------------------------

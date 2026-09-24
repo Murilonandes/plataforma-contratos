@@ -47,6 +47,10 @@ class ErrorCode(StrEnum):
     MAX_ITEMS = "max_items"
     DATES_NOT_INCREASING = "dates_not_increasing"
     INSTALLMENT_BELOW_MINIMUM = "installment_below_minimum"
+    MIN_LENGTH = "min_length"
+    ACTOR_NOT_ALLOWED = "actor_not_allowed"
+    INVALID_FORMAT = "invalid_format"
+    NOT_APPLICABLE = "not_applicable"
     DUPLICATE_PARTNER_FUNCTION = "duplicate_partner_function"
     PARTNER_IDENTIFIER_REQUIRED = "partner_identifier_required"
     UNKNOWN_FIELD = "unknown_field"
@@ -87,6 +91,13 @@ MENSAGENS: Final[Mapping[ErrorCode, tuple[str, tuple[str, ...]]]] = MappingProxy
             "0.01; aumente o total para ao menos {minimo_total} ou equilibre os pesos",
             ("minimo_total", "parcelas"),
         ),
+        ErrorCode.MIN_LENGTH: ("campo '{campo}' precisa de ao menos {min} caracteres", ("min",)),
+        ErrorCode.ACTOR_NOT_ALLOWED: (
+            "ator '{recebido}' nao pode disparar esta transicao (esperado '{esperado}')",
+            ("esperado", "recebido"),
+        ),
+        ErrorCode.INVALID_FORMAT: ("campo '{campo}' fora do formato: {formato}", ("formato",)),
+        ErrorCode.NOT_APPLICABLE: ("campo '{campo}' nao se aplica a esta transicao", ()),
         ErrorCode.DUPLICATE_PARTNER_FUNCTION: (
             "parceiro duplicado para funcao '{funcao}'",
             ("funcao",),

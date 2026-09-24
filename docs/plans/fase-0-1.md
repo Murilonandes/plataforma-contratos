@@ -1231,6 +1231,24 @@ git commit -m "feat(domain): cálculo de parcelas por maior resto + property tes
 
 ## Tarefa 1.7 — `states.py` (máquina de estados) — matriz completa da §4 atualizada
 
+> **Implementado em 2026-09-24 com os requisitos do dono do projeto** (substitui o esqueleto abaixo):
+> - Fonte única: a tabela do ARCHITECTURE §4. `test_states` lê as 21 linhas (parser compartilhado
+>   com `test_enums` em `tests/unit/domain/_referencias_arquitetura.py`) e confere `MATRIZ` campo a
+>   campo; o conjunto que exige `sap_contract_number` é o das linhas cuja Observação o cita.
+>   Exaustivo 8 × 15: 21 válidos, 99 `InvalidTransitionError` (que vence qualquer dado inválido).
+> - `transition(atual, evento, *, ator, justificativa=None, sap_contract_number=None, detalhe=None)
+>   -> Transicao`, pura. `Transicao` é plana (`de`, `para`, `evento`, `ator`, `justificativa`,
+>   `sap_contract_number`, `detalhe`) e **é** o registro do evento em `contract_events`.
+> - **Sem timestamp no domínio:** `occurred_at` (e `contract_id`) são carimbados pelo caso de uso via
+>   porta `Clock` (Fase 2/3).
+> - Erros acumulados (`DomainValidationError`): `ator.kind` (`actor_not_allowed`),
+>   `ator.identifier`, `justificativa` (obrigatória no "sim"; opcional para user/admin no "não";
+>   `not_applicable` para worker/system; 10 a 500 após strip), `sap_contract_number` (obrigatório
+>   só em `SAP_201`/`RECONCILIAR_PARA_CRIADO`, até 10 dígitos ASCII, `TODO(decisão #13)`;
+>   `not_applicable` nas demais) e `detalhe` (só worker/system; chave snake_case até 40, valor
+>   `int`/`str` até 200). Vazio ou só espaços = ausente.
+> - `states.py` entrou no mutmut e no gate (zero sobreviventes).
+
 **Arquivos:**
 - Criar: `backend/app/domain/states.py`, `backend/tests/unit/domain/test_states.py`
 

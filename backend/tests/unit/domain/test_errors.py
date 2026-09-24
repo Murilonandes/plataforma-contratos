@@ -132,6 +132,30 @@ def test_field_error_monta_mensagem_em_pt_br_a_partir_do_code() -> None:
             "total insuficiente para 3 parcela(s): cada parcela precisa de ao menos 0.01; "
             "aumente o total para ao menos 0.07 ou equilibre os pesos",
         ),
+        (
+            "justificativa",
+            ErrorCode.MIN_LENGTH,
+            {"min": 10},
+            "campo 'justificativa' precisa de ao menos 10 caracteres",
+        ),
+        (
+            "ator.kind",
+            ErrorCode.ACTOR_NOT_ALLOWED,
+            {"esperado": "admin", "recebido": "worker"},
+            "ator 'worker' nao pode disparar esta transicao (esperado 'admin')",
+        ),
+        (
+            "sap_contract_number",
+            ErrorCode.INVALID_FORMAT,
+            {"formato": "somente digitos"},
+            "campo 'sap_contract_number' fora do formato: somente digitos",
+        ),
+        (
+            "sap_contract_number",
+            ErrorCode.NOT_APPLICABLE,
+            {},
+            "campo 'sap_contract_number' nao se aplica a esta transicao",
+        ),
     ],
 )
 def test_mensagens_exatas(
@@ -281,6 +305,9 @@ _PARAMS_EXEMPLO: dict[ErrorCode, dict[str, object]] = {
     ErrorCode.INVALID_WEIGHT: {"max": 10000},
     ErrorCode.MAX_ITEMS: {"max": 36},
     ErrorCode.INSTALLMENT_BELOW_MINIMUM: {"minimo_total": "0.07", "parcelas": 3},
+    ErrorCode.MIN_LENGTH: {"min": 10},
+    ErrorCode.ACTOR_NOT_ALLOWED: {"esperado": "admin", "recebido": "worker"},
+    ErrorCode.INVALID_FORMAT: {"formato": "somente digitos"},
 }
 
 

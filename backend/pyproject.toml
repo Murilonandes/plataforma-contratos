@@ -148,7 +148,11 @@ filterwarnings = ["error"]
 
 [tool.mutmut]
 source_paths = ["app/"]
-only_mutate = ["app/domain/money.py", "app/domain/installments.py"]
+only_mutate = [
+    "app/domain/money.py",
+    "app/domain/installments.py",
+    "app/domain/states.py",  # decide quando NAO reenviar ao SAP
+]
 pytest_add_cli_args_test_selection = ["tests/unit/domain/"]
 
 # ---- Coverage --------------------------------------------------------------
