@@ -186,6 +186,32 @@ def test_obrigatorio_chave_ausente() -> None:
     assert _um_erro(dados) == ("to_Item[0].RequestedQuantityUnit", ErrorCode.REQUIRED, {})
 
 
+@pytest.mark.parametrize(
+    ("onde", "path"),
+    [
+        (("to_PricingElement", 1), "to_PricingElement[1].ConditionRateValue"),
+        (
+            ("to_Item", 0, "to_PricingElement", 0),
+            "to_Item[0].to_PricingElement[0].ConditionRateValue",
+        ),
+    ],
+)
+@pytest.mark.parametrize("ausente", ["chave", None])
+def test_condition_rate_value_nullable_false_e_exigido(
+    onde: tuple[Any, ...], path: str, ausente: str | None
+) -> None:
+    """Nullable=false no metadata: sem valor nao ha payload valido (nem null, nem chave ausente)."""
+    dados = _valido()
+    alvo: Any = dados
+    for passo in onde:
+        alvo = alvo[passo]
+    if ausente == "chave":
+        del alvo["ConditionRateValue"]
+    else:
+        alvo["ConditionRateValue"] = None
+    assert _um_erro(dados) == (path, ErrorCode.REQUIRED, {})
+
+
 def test_opcional_ausente_vira_default() -> None:
     dados = _valido()
     for chave in ("SalesOffice", "CodTaxa", "CustomerPurchaseOrderDate", "to_Text", "to_Partner"):

@@ -32,6 +32,7 @@ Esta plataforma cria contratos de venda (ZCON) no SAP S/4HANA pelo serviço ODat
   - `Porcentagem` com 4 casas soma exatamente `100.0000`
   - `Valor` com 2 casas soma exatamente o total
 - **`to_FormPag` NUNCA vem do cliente.** A entrada da API/caso de uso é `total` + `pesos` + `datas` + `FormPag`; as parcelas são sempre montadas por `calcular_parcelas` (`app/domain/installments.py`). O schema de entrada da Fase 3 não tem `to_FormPag`.
+- **Serialização para o SAP:** o adapter envia `content=to_json(payload)` (`app/infrastructure/sap/mapper.py`), **nunca** `json=` do httpx, que passaria `Decimal` por `float`. Decimal sai com a escala do campo fixada (`format(d, "f")`, nunca `str(Decimal)`), nos dois modos de `decimal_as_string`.
 - **`StatusBlock = "06"`**: o mapper do nosso backend SEMPRE grava `"06"` no payload enviado ao SAP. O domínio não tem esse campo e o cliente não controla. Omitir = contrato desbloqueado.
 - Toda transição de estado grava em `contract_events`. Toda tentativa de POST grava em `contract_submissions`.
 - A plataforma DEV nunca aponta para o SAP PRD. Há um guard de startup que checa host × `APP_ENV`.

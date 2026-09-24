@@ -100,3 +100,42 @@ def test_uppercase_so_no_form_pag() -> None:
 def test_status_block_e_computed_nunca_sao_entrada() -> None:
     nomes = {c.odata for _, c in _casos()}
     assert not nomes & {"StatusBlock", "SalesContract", "SalesContractItem", "ConditionUUID"}
+
+
+# ---- Ordem e Nullable ----------------------------------------------------------
+
+# Decimais calculados pelo servidor (calcular_parcelas): nunca vem do cliente, entao
+# o VO nao os exige; o mapper e a barreira (ValueError se chegarem None).
+_CALCULADOS = {("ParcelasContratoType", "Porcentagem"), ("ParcelasContratoType", "Valor")}
+
+
+@pytest.mark.parametrize("entidade", sorted(ESPECIFICACOES))
+def test_especificacoes_na_ordem_do_metadata(entidade: str) -> None:
+    """O mapper gera o payload a partir destas tuplas: a ordem das chaves e a do metadata."""
+    ordem_meta = [
+        n for n in metadata()[entidade] if n in {c.odata for c in ESPECIFICACOES[entidade]}
+    ]
+    assert [c.odata for c in ESPECIFICACOES[entidade]] == ordem_meta
+
+
+@pytest.mark.parametrize(("entidade", "c"), _casos(), ids=lambda x: getattr(x, "odata", x))
+def test_decimal_nao_anulavel_e_exigido_salvo_os_calculados(entidade: str, c: Campo) -> None:
+    """Edm.Decimal Nullable=false nao-calculado: None e ``required`` no Contract.criar.
+
+    Independente de FieldControl/Mandatory (que continua espelhado em ``obrigatorio``).
+    """
+    p = metadata()[entidade][c.odata]
+    esperado = (
+        c.tipo is Tipo.DECIMAL
+        and not p.nullable
+        and not p.mandatory
+        and (entidade, c.odata) not in _CALCULADOS
+    )
+    assert c.nao_nulo == esperado
+
+
+def test_decimais_nao_anulaveis_sao_so_os_condition_rate_value() -> None:
+    assert sorted((e, c.odata) for e, c in _casos() if c.nao_nulo) == [
+        ("PrecosCabecalhoType", "ConditionRateValue"),
+        ("PrecosItemType", "ConditionRateValue"),
+    ]

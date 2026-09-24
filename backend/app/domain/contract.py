@@ -23,8 +23,12 @@ Nada mais e transformado. Decimal com escala acima da permitida e erro
 expoente de um valor ja valido (``1`` -> ``1.000``).
 
 MaxLength e validado depois do strip. Obrigatoriedade = ``FieldControl/Mandatory``
-do ``$metadata`` (``Nullable=false`` nao implica obrigatorio). A tabela
-``ESPECIFICACOES`` espelha o ``$metadata``; ``test_contract_metadata`` confere.
+do ``$metadata`` (``Nullable=false`` nao implica obrigatorio), com uma excecao:
+``Edm.Decimal`` ``Nullable=false`` que nao e calculado pelo servidor
+(``ConditionRateValue``) e ``nao_nulo``: sem valor nao existe payload valido. A
+tabela ``ESPECIFICACOES`` espelha o ``$metadata``, inclusive na ordem das
+propriedades (o mapper gera o payload a partir dela); ``test_contract_metadata``
+confere.
 Strings sem MaxLength no metadata tem teto provisorio (``TODO(decisao #5)``):
 255 em ``NotaInternaCli``, ``PedidoSysFertil`` e ``Culture``; 1000 em ``LongText``.
 """
@@ -58,6 +62,7 @@ class Campo:
     attr: str
     tipo: Tipo
     obrigatorio: bool = False  # FieldControl=Mandatory
+    nao_nulo: bool = False  # Edm.Decimal Nullable=false nao-calculado: None e ``required``
     max_len: int | None = None  # MaxLength (so texto)
     maiusculo: bool = False  # IsUpperCase
     escala: int | None = None  # Scale (so decimal)
@@ -121,8 +126,15 @@ ITEM: Final = (
 
 PRECO: Final = (
     _t("ConditionType", "condition_type", 4, obrigatorio=True),
-    # TODO(decisao #4) numero x string na serializacao (Fase 2)
-    Campo("ConditionRateValue", "condition_rate_value", _T.DECIMAL, escala=9, precisao=23),
+    # TODO(decisao #4) numero x string: flag decimal_as_string do mapper
+    Campo(
+        "ConditionRateValue",
+        "condition_rate_value",
+        _T.DECIMAL,
+        nao_nulo=True,
+        escala=9,
+        precisao=23,
+    ),
 )
 
 PARCEIRO: Final = (
@@ -135,12 +147,14 @@ PARCEIRO: Final = (
 
 PARCELA: Final = (
     Campo("Parcela", "parcela", _T.INTEIRO, obrigatorio=True, positivo=True),
-    _t("TransactionCurrency", "transaction_currency", 3, obrigatorio=True),
+    # Porcentagem/Valor: Nullable=false, mas calculados por calcular_parcelas (nunca do
+    # cliente); o mapper barra None.
     Campo("Porcentagem", "porcentagem", _T.DECIMAL, escala=4, precisao=15),
     # Scale "variable" (moeda): BRL = 2 casas
     Campo("Valor", "valor", _T.DECIMAL, escala=2, precisao=15),
     Campo("Data", "data", _T.DATA),  # data base (ZFBDT), nao vencimento
     Campo("FormPag", "form_pag", _T.TEXTO, max_len=1, maiusculo=True),
+    _t("TransactionCurrency", "transaction_currency", 3, obrigatorio=True),
 )
 
 TEXTO: Final = (
@@ -206,7 +220,7 @@ def _validar_texto(c: Campo, bruto: object, path: str, col: ErrorCollector) -> s
 
 def _validar_decimal(c: Campo, bruto: object, path: str, col: ErrorCollector) -> Decimal | None:
     if bruto is None:
-        if c.obrigatorio:
+        if c.obrigatorio or c.nao_nulo:
             col.adicionar(path, ErrorCode.REQUIRED)
         return None
     if not isinstance(bruto, Decimal):
@@ -324,7 +338,9 @@ def _tipo_ok(c: Campo, valor: object) -> bool:
     if c.tipo is Tipo.TEXTO:
         return isinstance(valor, str)
     if c.tipo is Tipo.DECIMAL:
-        return isinstance(valor, Decimal) or (valor is None and not c.obrigatorio)
+        return isinstance(valor, Decimal) or (
+            valor is None and not c.obrigatorio and not c.nao_nulo
+        )
     if c.tipo is Tipo.DATA:
         return valor is None or (isinstance(valor, date) and not isinstance(valor, datetime))
     return (type(valor) is int) or (valor is None and not c.obrigatorio)
@@ -378,7 +394,7 @@ class Header:
 @dataclass(frozen=True, slots=True)
 class PricingElement:
     condition_type: str
-    condition_rate_value: Decimal | None
+    condition_rate_value: Decimal
 
     def __post_init__(self) -> None:
         _checar_tipos(self, PRECO)

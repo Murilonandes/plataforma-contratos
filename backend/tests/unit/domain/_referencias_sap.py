@@ -50,6 +50,7 @@ class PropriedadeMeta:
     precision: int | None
     scale: str | None  # "3", "9", "variable"
     anotacoes: frozenset[str] = field(default_factory=frozenset)
+    nullable: bool = True  # atributo Nullable (default do CSDL: true)
 
     @property
     def mandatory(self) -> bool:
@@ -91,9 +92,23 @@ def metadata() -> dict[str, dict[str, PropriedadeMeta]]:
                 precision=int(p.get("Precision")) if p.get("Precision") else None,
                 scale=p.get("Scale"),
                 anotacoes=frozenset(anotacoes.get(f"{nome_et}/{nome}", set())),
+                nullable=p.get("Nullable", "true") != "false",
             )
         resultado[nome_et] = props
     return resultado
+
+
+@cache
+def navegacoes() -> dict[str, tuple[str, ...]]:
+    """EntityType -> NavigationProperty na ordem do metadata."""
+    texto = (_docs_sap() / "metadata.xml").read_text(encoding="utf-8")
+    raiz = ET.fromstring(_AMP_SOLTO.sub("&amp;", texto))  # noqa: S314 — arquivo do proprio repo
+    return {
+        et.get("Name", ""): tuple(
+            n.get("Name", "") for n in et.findall(f"{_EDM}NavigationProperty")
+        )
+        for et in raiz.iter(f"{_EDM}EntityType")
+    }
 
 
 def _converter(no: Any, chave: str | None = None) -> Any:

@@ -152,8 +152,9 @@ only_mutate = [
     "app/domain/money.py",
     "app/domain/installments.py",
     "app/domain/states.py",  # decide quando NAO reenviar ao SAP
+    "app/infrastructure/sap/mapper.py",  # StatusBlock "06" e formatacao decimal
 ]
-pytest_add_cli_args_test_selection = ["tests/unit/domain/"]
+pytest_add_cli_args_test_selection = ["tests/unit/domain/", "tests/unit/infrastructure/sap/"]
 
 # ---- Coverage --------------------------------------------------------------
 # Gate roda em comando separado; não fica no addopts.

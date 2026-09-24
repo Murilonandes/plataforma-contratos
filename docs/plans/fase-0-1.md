@@ -1377,6 +1377,25 @@ git commit -m "feat(domain): máquina de estados completa (matriz §4, ator+just
 
 ## Tarefa 1.8 — `mapper.py` em `app/infrastructure/sap/` (função pura, golden file)
 
+> **Implementado em 2026-09-24 com os requisitos do dono do projeto** (substitui o esqueleto abaixo):
+> - `to_payload(contract, *, decimal_as_string) -> dict`, pura; a flag vem por parâmetro (o mapper
+>   não lê settings). Gerado a partir das `ESPECIFICACOES`, que agora seguem a **ordem do
+>   `$metadata`** (teste confere; `PARCELA` foi reordenada). Chaves na ordem do metadata,
+>   `StatusBlock = "06"` logo depois de `CodTaxa`, navegações na ordem do metadata.
+> - Decimal com a escala do campo fixada, sem arredondar (casa a mais = `ValueError`), `-0` → `0`.
+>   Modo string: `format(d, "f")`; modo número: `Decimal` quantizado. Nunca `str(Decimal)` nem
+>   `float`. Data `None` omitida; string vazia `""`; Computed e `_Contract`/`_Item` nunca saem.
+> - `to_json(payload) -> bytes`: serializador próprio, compacto; Decimal como literal exato; recusa
+>   `float`, `None`, `bool` e decimal não finito. O adapter envia `content=to_json(...)`, nunca
+>   `json=` do httpx (CLAUDE.md).
+> - `ConditionRateValue` (`Edm.Decimal` `Nullable=false` não calculado) passou a ser exigido no
+>   `Contract.criar` (`Campo.nao_nulo`); `Porcentagem`/`Valor` vêm de `calcular_parcelas`. O
+>   `ValueError` do mapper é a segunda barreira.
+> - Golden: `payload_exemplo` montado pelo domínio (`to_FormPag` via `calcular_parcelas`) e comparado
+>   semanticamente com o arquivo nos dois modos, direto e via `to_json`. Hypothesis gera contratos
+>   válidos variados: `StatusBlock`, Computed, ordem, escala fixa e round-trip exato.
+> - `mapper.py` no mutmut e no gate (`tests/unit/infrastructure/sap/` na seleção de testes).
+
 **Arquivos:**
 - Criar: `backend/app/infrastructure/sap/__init__.py`, `backend/app/infrastructure/sap/mapper.py`
 - Criar (teste): `backend/tests/unit/infrastructure/__init__.py`, `backend/tests/unit/infrastructure/sap/__init__.py`, `backend/tests/unit/infrastructure/sap/test_mapper.py`

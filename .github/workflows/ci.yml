@@ -46,7 +46,8 @@ jobs:
 
   mutation:
     # mutmut exige fork (POSIX): no Windows do dev nao roda, so aqui.
-    # Alvo: app/domain/money.py, installments.py e states.py ([tool.mutmut] no pyproject).
+    # Alvo: money.py, installments.py, states.py e infrastructure/sap/mapper.py
+    # ([tool.mutmut] no pyproject).
     runs-on: ubuntu-latest
     env:
       HYPOTHESIS_PROFILE: dev
