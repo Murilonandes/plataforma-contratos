@@ -12,12 +12,30 @@ modulo ``decimal`` e ``ROUND_HALF_EVEN`` e daria outro resultado nos empates.
 
 from __future__ import annotations
 
-from decimal import ROUND_HALF_UP, Context, Decimal
+from decimal import (
+    ROUND_HALF_UP,
+    Context,
+    Decimal,
+    DivisionByZero,
+    InvalidOperation,
+    Overflow,
+    localcontext,
+)
+from typing import Final
 
 BRL = Decimal("0.01")
 QTY = Decimal("0.001")
 PCT = Decimal("0.0001")
 RATE = Decimal("0.000000001")
+
+# Contexto explicito do dominio: nenhuma operacao depende do contexto decimal da
+# thread (``getcontext()``). 50 digitos cobre com folga o maior valor do servico
+# (Precision 23) e as contas intermediarias; estouro e erro, nunca arredondamento.
+CONTEXTO_DECIMAL: Final = Context(
+    prec=50,
+    rounding=ROUND_HALF_UP,
+    traps=[InvalidOperation, DivisionByZero, Overflow],
+)
 
 
 def _ensure_decimal(v: object) -> Decimal:
@@ -45,17 +63,22 @@ def sem_zero_negativo(v: Decimal) -> Decimal:
     return v.copy_abs() if v.is_zero() else v
 
 
+def _quantize(v: Decimal, quantum: Decimal) -> Decimal:
+    with localcontext(CONTEXTO_DECIMAL):
+        return _ensure_decimal(v).quantize(quantum, rounding=ROUND_HALF_UP)
+
+
 def quantize_brl(v: Decimal) -> Decimal:
-    return _ensure_decimal(v).quantize(BRL, rounding=ROUND_HALF_UP)
+    return _quantize(v, BRL)
 
 
 def quantize_qty(v: Decimal) -> Decimal:
-    return _ensure_decimal(v).quantize(QTY, rounding=ROUND_HALF_UP)
+    return _quantize(v, QTY)
 
 
 def quantize_pct(v: Decimal) -> Decimal:
-    return _ensure_decimal(v).quantize(PCT, rounding=ROUND_HALF_UP)
+    return _quantize(v, PCT)
 
 
 def quantize_rate(v: Decimal) -> Decimal:
-    return _ensure_decimal(v).quantize(RATE, rounding=ROUND_HALF_UP)
+    return _quantize(v, RATE)

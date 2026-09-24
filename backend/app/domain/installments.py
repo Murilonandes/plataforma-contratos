@@ -34,11 +34,12 @@ import dataclasses
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date
-from decimal import Decimal
+from decimal import Decimal, localcontext
 from typing import Final
 
 from app.domain.contract import PARCELA, validar_campo
 from app.domain.errors import ErrorCode, ErrorCollector, indice
+from app.domain.money import CONTEXTO_DECIMAL
 from app.domain.rules import MAX_PARCELAS
 
 __all__ = ["MAX_PARCELAS", "PESO_MAX", "ParcelaCalculada", "calcular_parcelas"]
@@ -67,35 +68,36 @@ class ParcelaCalculada:
 def calcular_parcelas(
     total: Decimal, pesos: Sequence[int], datas: Sequence[date]
 ) -> tuple[ParcelaCalculada, ...]:
-    col = ErrorCollector()
-    validar_campo(_TOTAL, total, "total", col)
-    pesos_ok = _validar_pesos(pesos, col)
-    _validar_datas(datas, len(pesos) if pesos_ok else None, col)
-    col.levantar_se_houver()  # daqui em diante: total Decimal valido, pesos e datas validos
+    with localcontext(CONTEXTO_DECIMAL):  # scaleb/Decimal nao dependem da thread
+        col = ErrorCollector()
+        validar_campo(_TOTAL, total, "total", col)
+        pesos_ok = _validar_pesos(pesos, col)
+        _validar_datas(datas, len(pesos) if pesos_ok else None, col)
+        col.levantar_se_houver()  # daqui em diante: total Decimal valido, pesos e datas validos
 
-    centavos = int(total.scaleb(_ESCALA_BRL))  # exato: no maximo 2 casas (validado)
-    soma, menor = sum(pesos), min(pesos)
-    if centavos * menor < soma:  # cota exata da menor parcela < 0.01
-        minimo = -(-soma // menor)  # teto, em centavos
-        col.adicionar(
-            "total",
-            ErrorCode.INSTALLMENT_BELOW_MINIMUM,
-            minimo_total=str(Decimal(minimo).scaleb(-_ESCALA_BRL)),
-            parcelas=len(pesos),
-        )
-        col.levantar_se_houver()
+        centavos = int(total.scaleb(_ESCALA_BRL))  # exato: no maximo 2 casas (validado)
+        soma, menor = sum(pesos), min(pesos)
+        if centavos * menor < soma:  # cota exata da menor parcela < 0.01
+            minimo = -(-soma // menor)  # teto, em centavos
+            col.adicionar(
+                "total",
+                ErrorCode.INSTALLMENT_BELOW_MINIMUM,
+                minimo_total=str(Decimal(minimo).scaleb(-_ESCALA_BRL)),
+                parcelas=len(pesos),
+            )
+            col.levantar_se_houver()
 
-    pcts = _maior_resto(_CEM_POR_CENTO, pesos)
-    valores = _maior_resto(centavos, pesos)
-    return tuple(
-        ParcelaCalculada(
-            parcela=i + 1,
-            porcentagem=Decimal(pcts[i]).scaleb(-_ESCALA_PCT),
-            valor=Decimal(valores[i]).scaleb(-_ESCALA_BRL),
-            data=datas[i],
+        pcts = _maior_resto(_CEM_POR_CENTO, pesos)
+        valores = _maior_resto(centavos, pesos)
+        return tuple(
+            ParcelaCalculada(
+                parcela=i + 1,
+                porcentagem=Decimal(pcts[i]).scaleb(-_ESCALA_PCT),
+                valor=Decimal(valores[i]).scaleb(-_ESCALA_BRL),
+                data=datas[i],
+            )
+            for i in range(len(pesos))
         )
-        for i in range(len(pesos))
-    )
 
 
 def _maior_resto(alvo: int, pesos: Sequence[int]) -> list[int]:

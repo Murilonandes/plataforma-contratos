@@ -497,3 +497,18 @@ def test_prop_to_json_round_trip_exato_sem_notacao_cientifica(
     assert _sem_notacao_cientifica(saida)
     assert b"null" not in saida
     assert json.loads(saida, parse_float=Decimal) == payload
+
+
+def test_mapper_nao_depende_do_contexto_decimal() -> None:
+    """B2: sob contexto hostil (prec 3, FLOOR, traps), o payload e o JSON sao os mesmos."""
+    from decimal import ROUND_FLOOR, Inexact, Rounded, localcontext
+
+    c = _com_taxa(Decimal("12345678901234.123456789"))
+    esperado = {s: to_json(to_payload(c, decimal_as_string=s)) for s in (False, True)}
+    with localcontext() as ctx:
+        ctx.prec = 3
+        ctx.rounding = ROUND_FLOOR
+        ctx.traps[Inexact] = True
+        ctx.traps[Rounded] = True
+        for s in (False, True):
+            assert to_json(to_payload(c, decimal_as_string=s)) == esperado[s]

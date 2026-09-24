@@ -25,7 +25,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Mapping
-from decimal import Decimal
+from decimal import Decimal, localcontext
 from functools import partial
 from typing import Any, Final
 
@@ -41,7 +41,7 @@ from app.domain.contract import (
     Contract,
     Tipo,
 )
-from app.domain.money import casas_decimais, sem_zero_negativo
+from app.domain.money import CONTEXTO_DECIMAL, casas_decimais, sem_zero_negativo
 
 STATUS_BLOCK: Final = "06"
 
@@ -91,7 +91,8 @@ def _decimal(c: Campo, valor: object, como_string: bool) -> Decimal | str:
     valor = sem_zero_negativo(valor)  # -0 -> 0, antes de validar (mesma regra do dominio)
     if casas_decimais(valor) > _ESCALAS[c.odata]:
         raise ValueError(f"{c.odata}: {valor} tem mais de {_ESCALAS[c.odata]} casas decimais")
-    fixo = valor.quantize(_QUANTUNS[c.odata])  # exato: cabe na escala
+    with localcontext(CONTEXTO_DECIMAL):
+        fixo = valor.quantize(_QUANTUNS[c.odata])  # exato: cabe na escala
     return f"{fixo:f}" if como_string else fixo  # ponto fixo, nunca str(Decimal)
 
 

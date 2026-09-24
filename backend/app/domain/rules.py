@@ -28,10 +28,11 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from datetime import date
-from decimal import Decimal
+from decimal import Decimal, localcontext
 from typing import Final
 
 from app.domain.errors import ErrorCode, FieldError, campo
+from app.domain.money import CONTEXTO_DECIMAL
 from app.domain.politica import PoliticaSalesOrg
 
 MAX_PARCELAS: Final = 36  # tambem o limite de calcular_parcelas (installments.py)
@@ -94,7 +95,8 @@ def validar_parcelas(
 
     porcentagens = [pct for _, _, pct, _ in parcelas if pct is not None]
     if parcelas and len(porcentagens) == len(parcelas):
-        soma = sum(porcentagens, Decimal("0.0000"))
+        with localcontext(CONTEXTO_DECIMAL):
+            soma = sum(porcentagens, Decimal("0.0000"))
         if soma != _CEM_POR_CENTO:
             erros.append(
                 FieldError.criar("to_FormPag", ErrorCode.INSTALLMENT_PERCENT_SUM, soma=f"{soma:f}")
