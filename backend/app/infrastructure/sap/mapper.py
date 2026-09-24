@@ -12,7 +12,7 @@ o ``$metadata`` inclusive na ordem: as chaves saem na ordem do metadata
 - ``Edm.Decimal`` sai com a escala do campo FIXADA (``Valor`` ``7766.50``, nunca
   ``7766.5`` nem ``7.7665E+3``), sem arredondar: casa a mais e ``ValueError``.
   ``decimal_as_string`` (``TODO(decisao #4)``, a flag vem por parametro, o mapper
-  nao le settings): ``True`` -> ``format(d, "f")``; ``False`` -> ``Decimal`` ja
+  nao le settings): ``True`` -> ``f"{d:f}"``; ``False`` -> ``Decimal`` ja
   quantizado, escrito como literal exato por ``to_json``. Nunca ``str(Decimal)``,
   nunca ``float``. ``None`` em decimal e ``ValueError`` (segunda barreira: o
   ``Contract.criar`` ja exige; ``Porcentagem``/``Valor`` vem de ``calcular_parcelas``).
@@ -26,6 +26,7 @@ from __future__ import annotations
 import json
 from collections.abc import Mapping
 from decimal import Decimal
+from functools import partial
 from typing import Any, Final
 
 from app.domain.contract import (
@@ -43,32 +44,33 @@ from app.domain.contract import (
 
 STATUS_BLOCK: Final = "06"
 
-# Escala de cada Edm.Decimal (mesma em toda entidade onde o campo aparece).
+# Escala de cada Edm.Decimal (mesma em toda entidade onde o campo aparece) e o
+# quantum correspondente (``quantize`` usa so o expoente: 1E-2, 1E-9...).
 _ESCALAS: Final[Mapping[str, int]] = {
     c.odata: c.escala for specs in ESPECIFICACOES.values() for c in specs if c.escala is not None
+}
+_QUANTUNS: Final[Mapping[str, Decimal]] = {
+    nome: Decimal(1).scaleb(-escala) for nome, escala in _ESCALAS.items()
 }
 
 
 def to_payload(contract: Contract, *, decimal_as_string: bool) -> dict[str, Any]:
-    s = decimal_as_string
-    payload = _entidade(contract.header, CABECALHO, s)
+    ent = partial(_entidade, como_string=decimal_as_string)  # a flag entra num lugar so
+    payload = ent(contract.header, CABECALHO)
     payload["StatusBlock"] = STATUS_BLOCK
     # Navegacoes na ordem do metadata (CriaContratoType).
-    payload["to_FormPag"] = [_entidade(p, PARCELA, s) for p in contract.installments]
+    payload["to_FormPag"] = [ent(p, PARCELA) for p in contract.installments]
     payload["to_Item"] = [
-        {
-            **_entidade(i, ITEM, s),
-            "to_PricingElement": [_entidade(p, PRECO, s) for p in i.pricing],
-        }
+        {**ent(i, ITEM), "to_PricingElement": [ent(p, PRECO) for p in i.pricing]}
         for i in contract.items
     ]
-    payload["to_Partner"] = [_entidade(p, PARCEIRO, s) for p in contract.partners]
-    payload["to_PricingElement"] = [_entidade(p, PRECO, s) for p in contract.pricing]
-    payload["to_Text"] = [_entidade(t, TEXTO, s) for t in contract.texts]
+    payload["to_Partner"] = [ent(p, PARCEIRO) for p in contract.partners]
+    payload["to_PricingElement"] = [ent(p, PRECO) for p in contract.pricing]
+    payload["to_Text"] = [ent(t, TEXTO) for t in contract.texts]
     return payload
 
 
-def _entidade(obj: object, specs: tuple[Campo, ...], como_string: bool) -> dict[str, Any]:
+def _entidade(obj: object, specs: tuple[Campo, ...], *, como_string: bool) -> dict[str, Any]:
     saida: dict[str, Any] = {}
     for c in specs:
         valor = getattr(obj, c.attr)
@@ -85,18 +87,17 @@ def _entidade(obj: object, specs: tuple[Campo, ...], como_string: bool) -> dict[
 def _decimal(c: Campo, valor: object, como_string: bool) -> Decimal | str:
     if not isinstance(valor, Decimal) or not valor.is_finite():
         raise ValueError(f"{c.odata}: decimal ausente ou invalido")
-    escala = _ESCALAS[c.odata]
-    fixo = valor.quantize(Decimal(1).scaleb(-escala))
+    fixo = valor.quantize(_QUANTUNS[c.odata])
     if fixo != valor:
-        raise ValueError(f"{c.odata}: {valor} tem mais de {escala} casas decimais")
+        raise ValueError(f"{c.odata}: {valor} tem mais de {_ESCALAS[c.odata]} casas decimais")
     if fixo.is_zero():
         fixo = fixo.copy_abs()  # -0 -> 0
-    return format(fixo, "f") if como_string else fixo
+    return f"{fixo:f}" if como_string else fixo  # ponto fixo, nunca str(Decimal)
 
 
 def to_json(payload: Mapping[str, Any]) -> bytes:
     """JSON compacto em UTF-8 (ASCII com escapes). Decimal sai como literal exato."""
-    return _json(payload).encode("utf-8")
+    return _json(payload).encode()  # UTF-8; o texto ja e ASCII (json.dumps escapa)
 
 
 def _json(valor: object) -> str:
@@ -107,7 +108,7 @@ def _json(valor: object) -> str:
     if isinstance(valor, Decimal):
         if not valor.is_finite():
             raise ValueError("to_json: decimal nao finito")
-        return format(valor, "f")
+        return f"{valor:f}"
     if isinstance(valor, str) or type(valor) is int:  # bool e subclasse de int: recusado
         return json.dumps(valor)
     raise TypeError(f"to_json: tipo nao suportado ({type(valor).__name__})")

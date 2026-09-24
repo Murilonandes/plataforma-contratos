@@ -326,11 +326,23 @@ def test_to_json_escapa_strings_e_chaves() -> None:
     assert to_json({'a"b': 'c"\n'}) == b'{"a\\"b":"c\\"\\n"}'
 
 
-@pytest.mark.parametrize("valor", [1.5, None, True, False, (1, 2), {1, 2}, date(2026, 1, 1)])
-def test_to_json_recusa_o_que_nao_e_payload(valor: object) -> None:
+@pytest.mark.parametrize(
+    ("valor", "tipo"),
+    [
+        (1.5, "float"),
+        (None, "NoneType"),
+        (True, "bool"),
+        (False, "bool"),
+        ((1, 2), "tuple"),
+        ({1, 2}, "set"),
+        (date(2026, 1, 1), "date"),
+    ],
+)
+def test_to_json_recusa_o_que_nao_e_payload(valor: object, tipo: str) -> None:
     """float nunca; null nunca (string vazia e ""); bool/tupla/data nao existem no payload."""
-    with pytest.raises(TypeError, match=r"^to_json: tipo nao suportado \(\w+\)$"):
+    with pytest.raises(TypeError) as exc:
         to_json({"x": valor})
+    assert str(exc.value) == f"to_json: tipo nao suportado ({tipo})"
 
 
 @pytest.mark.parametrize("valor", [Decimal("NaN"), Decimal("-Infinity"), Decimal("sNaN")])
