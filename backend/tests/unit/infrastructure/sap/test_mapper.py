@@ -12,7 +12,7 @@ import dataclasses
 import json
 import re
 from datetime import date, timedelta
-from decimal import Decimal
+from decimal import Context, Decimal
 from pathlib import Path
 from typing import Any
 
@@ -136,28 +136,88 @@ def test_golden_pelo_json(como_string: bool) -> None:
     assert _semantico(json.loads(saida, parse_float=Decimal)) == _semantico(_exemplo_arquivo())
 
 
-def test_golden_modo_numero_escala_fixa_no_json() -> None:
-    saida = to_json(to_payload(_contrato_do_exemplo(), decimal_as_string=False))
-    for literal in (
-        b'"Valor":7766.52',
-        b'"Porcentagem":33.3334',
-        b'"RequestedQuantity":1.000',
-        b'"ConditionRateValue":1164.980000000',
-        b'"ConditionRateValue":1.500000000',
-        b'"Parcela":1',
-    ):
-        assert literal in saida
+def _com_escala_fixa(no: Any, chave: str | None = None) -> Any:
+    """Esperado (do arquivo): todo decimal vira o literal com a escala do campo."""
+    if isinstance(no, dict):
+        return {k: _com_escala_fixa(v, k) for k, v in no.items()}
+    if isinstance(no, list):
+        return [_com_escala_fixa(v, chave) for v in no]
+    if chave in _ESCALA:
+        return f"{Decimal(no).quantize(Decimal(1).scaleb(-_ESCALA[chave])):f}"
+    return no
 
 
-def test_golden_modo_string_escala_fixa_no_json() -> None:
-    saida = to_json(to_payload(_contrato_do_exemplo(), decimal_as_string=True))
-    for literal in (
-        b'"Valor":"7766.51"',
-        b'"RequestedQuantity":"1.000"',
-        b'"ConditionRateValue":"2.320000000"',
-        b'"Parcela":1',  # Int32 nao vira string (IEEE754Compatible so afeta Decimal/Int64)
-    ):
-        assert literal in saida
+def _literais(no: Any, chave: str | None = None) -> Any:
+    """Obtido (JSON parseado com parse_float=Decimal): decimal -> literal como foi escrito.
+
+    ``Decimal`` do parse guarda o expoente do texto: ``7766.520`` nao vira ``7766.52``.
+    """
+    if isinstance(no, dict):
+        return {k: _literais(v, k) for k, v in no.items()}
+    if isinstance(no, list):
+        return [_literais(v, chave) for v in no]
+    if chave in _ESCALA and isinstance(no, Decimal):
+        return f"{no:f}"
+    return no
+
+
+@pytest.mark.parametrize("como_string", [False, True])
+def test_golden_literais_exatos_pelo_json(como_string: bool) -> None:
+    """T1: parse com parse_float=Decimal e comparacao do literal exato, nunca substring."""
+    saida = to_json(to_payload(_contrato_do_exemplo(), decimal_as_string=como_string))
+    obtido = json.loads(saida, parse_float=Decimal)
+    assert _literais(obtido) == _com_escala_fixa(_exemplo_arquivo())
+    for _, valor in _decimais(obtido):
+        assert type(valor) is (str if como_string else Decimal)
+    parcelas = [p["Parcela"] for p in obtido["to_FormPag"]]
+    assert parcelas == [1, 2, 3]
+    assert all(type(p) is int for p in parcelas)  # Int32 nunca vira string nem decimal
+
+
+def test_golden_detecta_casa_a_mais() -> None:
+    """Sanidade do comparador: um literal com uma casa a mais nao passaria."""
+    obtido = json.loads(b'{"Valor":7766.520}', parse_float=Decimal)
+    assert _literais(obtido) != _com_escala_fixa({"Valor": Decimal("7766.52")})
+
+
+_ENTIDADE_DA_NAV = {
+    ("CriaContratoType", "to_FormPag"): "ParcelasContratoType",
+    ("CriaContratoType", "to_Item"): "ItensContratoType",
+    ("CriaContratoType", "to_Partner"): "ParceirosContratoType",
+    ("CriaContratoType", "to_PricingElement"): "PrecosCabecalhoType",
+    ("CriaContratoType", "to_Text"): "TextosContratoType",
+    ("ItensContratoType", "to_PricingElement"): "PrecosItemType",
+}
+
+
+def _na_ordem_do_metadata(no: dict[str, Any], entidade: str) -> dict[str, Any]:
+    ordem = [*metadata()[entidade], *navegacoes()[entidade]]
+    resultado: dict[str, Any] = {}
+    for chave in sorted(no, key=ordem.index):
+        valor = no[chave]
+        if isinstance(valor, list):
+            filha = _ENTIDADE_DA_NAV[(entidade, chave)]
+            valor = [_na_ordem_do_metadata(v, filha) for v in valor]
+        resultado[chave] = valor
+    return resultado
+
+
+def _arvore_de_chaves(no: Any) -> Any:
+    if isinstance(no, dict):
+        return [(k, _arvore_de_chaves(v)) for k, v in no.items()]
+    if isinstance(no, list):
+        return [_arvore_de_chaves(v) for v in no]
+    return None
+
+
+@pytest.mark.parametrize("como_string", [False, True])
+def test_golden_lista_ordenada_de_chaves(como_string: bool) -> None:
+    """T3: alem do dict (que ignora ordem), a lista de chaves em todos os niveis."""
+    payload = to_payload(_contrato_do_exemplo(), decimal_as_string=como_string)
+    esperado = _na_ordem_do_metadata(_exemplo_arquivo(), "CriaContratoType")
+    assert _arvore_de_chaves(payload) == _arvore_de_chaves(esperado)
+    obtido = json.loads(to_json(payload), parse_float=Decimal)
+    assert _arvore_de_chaves(obtido) == _arvore_de_chaves(esperado)
 
 
 # ---- StatusBlock, Computed, strings, datas -----------------------------------
@@ -385,6 +445,40 @@ def test_to_json_chave_precisa_ser_str() -> None:
 _ALFABETO = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 
 
+def _nao_canonico(d: Decimal, extra: int, forma: int) -> Decimal:
+    """Mesmo valor, outra representacao (T2): o mapper precisa fixar a escala assim mesmo.
+
+    0: canonico; 1: zeros a direita alem da escala (1.5 -> 1.500000); 2: normalizado
+    (1.00 -> 1, 100 -> 1E+2); 3: zero negativo (so quando o valor e zero).
+    """
+    if forma == 1:
+        sinal, digitos, expoente = d.as_tuple()
+        return Decimal((sinal, (*digitos, *(0,) * extra), int(expoente) - extra))
+    if forma == 2:
+        return d.normalize(Context(prec=60))
+    if forma == 3 and d.is_zero():
+        return d.copy_negate()
+    return d
+
+
+@pytest.mark.parametrize(
+    ("d", "extra", "forma", "texto"),
+    [
+        (Decimal("1.5"), 3, 1, "1.5000"),
+        (Decimal("100.00"), 1, 2, "1E+2"),
+        (Decimal("0.00"), 1, 3, "-0.00"),
+        (Decimal("2.5"), 1, 3, "2.5"),
+        (Decimal("2.5"), 1, 0, "2.5"),
+    ],
+)
+def test_estrategia_gera_representacoes_nao_canonicas(
+    d: Decimal, extra: int, forma: int, texto: str
+) -> None:
+    resultado = _nao_canonico(d, extra, forma)
+    assert str(resultado) == texto  # representacao (sinal/expoente), nao so o valor
+    assert resultado == d
+
+
 def _valor(c: Campo) -> st.SearchStrategy[Any]:
     if c.tipo is Tipo.TEXTO:
         tamanho = min(c.max_len or 20, 20)
@@ -398,7 +492,8 @@ def _valor(c: Campo) -> st.SearchStrategy[Any]:
     escala = c.escala
     limite = 10**c.precisao - 1  # em unidades da escala
     unidades = st.integers(1 if c.positivo else -limite, limite)
-    return unidades.map(lambda u: Decimal(u).scaleb(-escala))
+    base = unidades.map(lambda u: Decimal(u).scaleb(-escala))
+    return st.builds(_nao_canonico, base, st.integers(1, 12), st.integers(0, 3))
 
 
 def _entidade(specs: tuple[Campo, ...]) -> st.SearchStrategy[dict[str, Any]]:
@@ -431,8 +526,10 @@ def _contratos(draw: st.DrawFn) -> Contract:
             {
                 **base,
                 "Parcela": p.parcela,
-                "Porcentagem": p.porcentagem,
-                "Valor": p.valor,
+                "Porcentagem": _nao_canonico(p.porcentagem, draw(st.integers(1, 5)), 1),
+                "Valor": draw(
+                    st.builds(_nao_canonico, st.just(p.valor), st.integers(1, 5), st.integers(0, 2))
+                ),
                 "Data": p.data,
                 "TransactionCurrency": "BRL",
             }
