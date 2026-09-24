@@ -14,6 +14,9 @@ Entrada: ``Mapping`` no formato do payload OData (PascalCase, navegacao
 API. Campo fora da especificacao e rejeitado (``unknown_field``): o cliente nao
 envia ``StatusBlock`` nem campos ``Computed``.
 
+Strings recusam caractere de controle e surrogate isolado (``invalid_characters``);
+``\t``, ``\n`` e ``\r`` so no ``LongText`` (``multilinha``).
+
 Normalizacao (explicita, e so isto):
 - strip em toda string;
 - uppercase so em campo anotado ``SAP__common.IsUpperCase`` no ``$metadata``.
@@ -35,6 +38,7 @@ Strings sem MaxLength no metadata tem teto provisorio (``TODO(decisao #5)``):
 
 from __future__ import annotations
 
+import unicodedata
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import date, datetime
@@ -76,6 +80,7 @@ class Campo:
     escala: int | None = None  # Scale (so decimal)
     precisao: int | None = None  # Precision (so decimal)
     positivo: bool = False  # regra do dominio (quantidade, parcela: numero, % e valor)
+    multilinha: bool = False  # aceita \t, \n e \r (so LongText)
 
 
 def _t(odata: str, attr: str, max_len: int | None, *, obrigatorio: bool = False) -> Campo:
@@ -177,7 +182,8 @@ PARCELA: Final = (
 TEXTO: Final = (
     _t("Language", "language", 2, obrigatorio=True),
     _t("LongTextID", "long_text_id", 4, obrigatorio=True),
-    _t("LongText", "long_text", 1000),  # TODO(decisao #5) placeholder generoso
+    # TODO(decisao #5) MaxLength placeholder generoso
+    Campo("LongText", "long_text", _T.TEXTO, max_len=1000, multilinha=True),
 )
 
 ESPECIFICACOES: Final[Mapping[str, tuple[Campo, ...]]] = {
@@ -207,6 +213,17 @@ def _digitos_inteiros(v: Decimal) -> int:
     return v.adjusted() + 1 if v else 0
 
 
+_QUEBRAS_PERMITIDAS: Final = frozenset("\t\n\r")
+
+
+def _caractere_invalido(ch: str, *, multilinha: bool) -> bool:
+    """Controle (Cc: C0, DEL, C1) e surrogate isolado (Cs); tab/quebra so em multilinha."""
+    categoria = unicodedata.category(ch)
+    if categoria == "Cs":
+        return True
+    return categoria == "Cc" and not (multilinha and ch in _QUEBRAS_PERMITIDAS)
+
+
 def _validar_texto(c: Campo, bruto: object, path: str, col: ErrorCollector) -> str:
     if bruto is None:
         valor = ""
@@ -219,6 +236,8 @@ def _validar_texto(c: Campo, bruto: object, path: str, col: ErrorCollector) -> s
         valor = valor.upper()
     if c.obrigatorio and not valor:
         col.adicionar(path, ErrorCode.REQUIRED)
+    elif any(_caractere_invalido(ch, multilinha=c.multilinha) for ch in valor):
+        col.adicionar(path, ErrorCode.INVALID_CHARACTERS)
     elif c.max_len is not None and len(valor) > c.max_len:
         col.adicionar(path, ErrorCode.MAX_LENGTH, max=c.max_len)
     return valor

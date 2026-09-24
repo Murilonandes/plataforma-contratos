@@ -56,6 +56,7 @@ class ErrorCode(StrEnum):
     CURRENCY_NOT_ALLOWED = "currency_not_allowed"
     CURRENCY_MISMATCH = "currency_mismatch"
     SALES_ORG_NOT_CONFIGURED = "sales_org_not_configured"
+    INVALID_CHARACTERS = "invalid_characters"
     DUPLICATE_PARTNER_FUNCTION = "duplicate_partner_function"
     PARTNER_IDENTIFIER_REQUIRED = "partner_identifier_required"
     UNKNOWN_FIELD = "unknown_field"
@@ -122,6 +123,10 @@ MENSAGENS: Final[Mapping[ErrorCode, tuple[str, tuple[str, ...]]]] = MappingProxy
         ErrorCode.SALES_ORG_NOT_CONFIGURED: (
             "organizacao de vendas '{sales_org}' sem configuracao na plataforma",
             ("sales_org",),
+        ),
+        ErrorCode.INVALID_CHARACTERS: (
+            "campo '{campo}' contem caracteres invalidos (controle ou surrogate)",
+            (),
         ),
         ErrorCode.DUPLICATE_PARTNER_FUNCTION: (
             "parceiro duplicado para funcao '{funcao}'",

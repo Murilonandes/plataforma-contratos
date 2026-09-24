@@ -133,3 +133,10 @@ def test_decimais_nao_anulaveis() -> None:
         ("PrecosCabecalhoType", "ConditionRateValue"),
         ("PrecosItemType", "ConditionRateValue"),
     ]
+
+
+def test_multilinha_so_no_long_text() -> None:
+    """Tab e quebra de linha so valem no texto longo; o resto e linha unica."""
+    assert [(e, c.odata) for e, c in _casos() if c.multilinha] == [
+        ("TextosContratoType", "LongText")
+    ]

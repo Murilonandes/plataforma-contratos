@@ -170,6 +170,59 @@ def test_teto_provisorio_de_255_sem_max_length_no_metadata(
     assert _um_erro(dados) == (path, ErrorCode.MAX_LENGTH, {"max": 255})
 
 
+# ---- Caracteres invalidos (controle e surrogate isolado) ----------------------
+
+
+@pytest.mark.parametrize(
+    "ruim",
+    # surrogates via chr(): o ruff nao distingue os literais isolados (falso PT014)
+    ["\x00", "\x07", "\x1b", "\x7f", "\x85", chr(0xD800), chr(0xDFFF), "\t", "\n", "\r"],
+    ids=lambda c: f"U+{ord(c):04X}",
+)
+@pytest.mark.parametrize(
+    ("onde", "chave"),
+    [((), "SalesOffice"), ((), "NotaInternaCli"), (("to_Item", 0), "Material")],
+)
+def test_texto_recusa_controle_e_surrogate(
+    onde: tuple[str, int] | tuple[()], chave: str, ruim: str
+) -> None:
+    dados = _valido()
+    alvo = dados[onde[0]][onde[1]] if onde else dados
+    path = f"{onde[0]}[{onde[1]}].{chave}" if onde else chave
+    alvo[chave] = f"A{ruim}B"  # no meio: o strip nao remove
+    assert _um_erro(dados) == (path, ErrorCode.INVALID_CHARACTERS, {})
+
+
+@pytest.mark.parametrize(
+    "ruim", ["\x00", "\x0b", "\x0c", "\x7f", "\x85", "\ud800"], ids=lambda c: f"U+{ord(c):04X}"
+)
+def test_long_text_recusa_controle_exceto_tab_e_quebra_de_linha(ruim: str) -> None:
+    dados = _valido()
+    dados["to_Text"][0]["LongText"] = f"linha{ruim}fim"
+    assert _um_erro(dados) == ("to_Text[0].LongText", ErrorCode.INVALID_CHARACTERS, {})
+
+
+def test_long_text_aceita_tab_e_quebras_de_linha() -> None:
+    dados = _valido()
+    dados["to_Text"][0]["LongText"] = "linha 1\r\nlinha 2\n\tfim"
+    assert Contract.criar(dados).texts[0].long_text == "linha 1\r\nlinha 2\n\tfim"
+
+
+@pytest.mark.parametrize(
+    "bom", ["Paranagu\u00e1", "\u00c7\u00c3O", "a\u200bb", "\U0001f600", "\u00a0x"]
+)
+def test_texto_aceita_unicode_imprimivel_e_formatacao(bom: str) -> None:
+    dados = _valido()
+    dados["NotaInternaCli"] = bom
+    assert Contract.criar(dados).header.nota_interna_cli == bom.strip()
+
+
+def test_caractere_invalido_vem_antes_do_max_length() -> None:
+    dados = _valido()
+    dados["SalesOffice"] = "A\x00BCDEFG"
+    assert _um_erro(dados) == ("SalesOffice", ErrorCode.INVALID_CHARACTERS, {})
+
+
 # ---- Obrigatoriedade (FieldControl/Mandatory) --------------------------------
 
 

@@ -186,6 +186,12 @@ def test_field_error_monta_mensagem_em_pt_br_a_partir_do_code() -> None:
             {"sales_org": "XX01"},
             "organizacao de vendas 'XX01' sem configuracao na plataforma",
         ),
+        (
+            "to_Text[0].LongText",
+            ErrorCode.INVALID_CHARACTERS,
+            {},
+            "campo 'LongText' contem caracteres invalidos (controle ou surrogate)",
+        ),
     ],
 )
 def test_mensagens_exatas(
