@@ -6,6 +6,7 @@ automatizada; este teste impede que isso passe de novo sem ser visto.
 
 from __future__ import annotations
 
+import os
 import re
 from pathlib import Path
 
@@ -34,13 +35,11 @@ def _raiz() -> Path:
 
 
 def _arquivos_de_texto() -> list[Path]:
-    return [
-        p
-        for p in _raiz().rglob("*")
-        if p.is_file()
-        and p.suffix in _EXTENSOES
-        and not _IGNORAR.intersection(p.relative_to(_raiz()).parts)
-    ]
+    arquivos: list[Path] = []
+    for pasta, subpastas, nomes in os.walk(_raiz()):
+        subpastas[:] = [d for d in subpastas if d not in _IGNORAR]  # poda: nao entra
+        arquivos += [Path(pasta, n) for n in nomes if Path(n).suffix in _EXTENSOES]
+    return arquivos
 
 
 def test_ha_arquivos_para_varrer() -> None:
