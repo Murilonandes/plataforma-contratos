@@ -24,8 +24,8 @@ expoente de um valor ja valido (``1`` -> ``1.000``).
 
 MaxLength e validado depois do strip. Obrigatoriedade = ``FieldControl/Mandatory``
 do ``$metadata`` (``Nullable=false`` nao implica obrigatorio), com uma excecao:
-``Edm.Decimal`` ``Nullable=false`` que nao e calculado pelo servidor
-(``ConditionRateValue``) e ``nao_nulo``: sem valor nao existe payload valido. A
+``Edm.Decimal`` ``Nullable=false`` (``ConditionRateValue``, ``Porcentagem``,
+``Valor``) e ``nao_nulo``: sem valor nao existe payload valido. A
 tabela ``ESPECIFICACOES`` espelha o ``$metadata``, inclusive na ordem das
 propriedades (o mapper gera o payload a partir dela); ``test_contract_metadata``
 confere.
@@ -44,7 +44,7 @@ from typing import Any, Final
 
 from app.domain.errors import ErrorCode, ErrorCollector, campo, indice
 from app.domain.money import quantize_brl, quantize_pct, quantize_qty, quantize_rate
-from app.domain.rules import validar_regras
+from app.domain.rules import validar_parcelas, validar_regras
 
 
 class Tipo(Enum):
@@ -148,11 +148,19 @@ PARCEIRO: Final = (
 
 PARCELA: Final = (
     Campo("Parcela", "parcela", _T.INTEIRO, obrigatorio=True, positivo=True),
-    # Porcentagem/Valor: Nullable=false, mas calculados por calcular_parcelas (nunca do
-    # cliente); o mapper barra None.
-    Campo("Porcentagem", "porcentagem", _T.DECIMAL, escala=4, precisao=15, positivo=True),
+    # Porcentagem/Valor vem de calcular_parcelas, mas o dominio nao confia nisso:
+    # Nullable=false -> exigidos, > 0, e as invariantes do to_FormPag ficam em rules.py.
+    Campo(
+        "Porcentagem",
+        "porcentagem",
+        _T.DECIMAL,
+        nao_nulo=True,
+        escala=4,
+        precisao=15,
+        positivo=True,
+    ),
     # Scale "variable" (moeda): BRL = 2 casas
-    Campo("Valor", "valor", _T.DECIMAL, escala=2, precisao=15, positivo=True),
+    Campo("Valor", "valor", _T.DECIMAL, nao_nulo=True, escala=2, precisao=15, positivo=True),
     Campo("Data", "data", _T.DATA),  # data base (ZFBDT), nao vencimento
     Campo("FormPag", "form_pag", _T.TEXTO, max_len=1, maiusculo=True),
     _t("TransactionCurrency", "transaction_currency", 3, obrigatorio=True),
@@ -509,16 +517,24 @@ class Contract:
             _validar_entidade(el, PRECO, col, p)
             for p, el in _elementos(dados, "to_PricingElement", col, "")
         ]
-        parcelas = [
-            _validar_entidade(el, PARCELA, col, p)
-            for p, el in _elementos(dados, "to_FormPag", col, "")
-        ]
+        elementos_parcela = _elementos(dados, "to_FormPag", col, "")
+        parcelas = [_validar_entidade(el, PARCELA, col, p) for p, el in elementos_parcela]
         textos = [
             _validar_entidade(el, TEXTO, col, p) for p, el in _elementos(dados, "to_Text", col, "")
         ]
 
         col.incorporar(
             validar_regras(parceiros=funcoes, itens_recebidos=_recebidos(dados, "to_Item")),
+            prefixo="",
+        )
+        col.incorporar(
+            validar_parcelas(
+                [
+                    (p, v["parcela"], v["porcentagem"], v["data"])
+                    for (p, _), v in zip(elementos_parcela, parcelas, strict=True)
+                ],
+                recebidas=_recebidos(dados, "to_FormPag"),
+            ),
             prefixo="",
         )
         col.levantar_se_houver()

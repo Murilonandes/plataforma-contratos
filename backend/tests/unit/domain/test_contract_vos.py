@@ -216,14 +216,14 @@ def test_opcional_ausente_vira_default() -> None:
     dados = _valido()
     for chave in ("SalesOffice", "CodTaxa", "CustomerPurchaseOrderDate", "to_Text", "to_Partner"):
         del dados[chave]
-    del dados["to_FormPag"][0]["Porcentagem"]
+    del dados["to_FormPag"][0]["Data"]
     c = Contract.criar(dados)
     assert c.header.sales_office == ""
     assert c.header.cod_taxa == ""
     assert c.header.customer_purchase_order_date is None
     assert c.texts == ()
     assert c.partners == ()
-    assert c.installments[0].porcentagem is None
+    assert c.installments[0].data is None
 
 
 def test_decimal_obrigatorio_ausente() -> None:
@@ -376,11 +376,17 @@ def test_porcentagem_e_valor_da_parcela_precisam_ser_positivos(campo: str, valor
     assert _um_erro(dados) == (f"to_FormPag[2].{campo}", ErrorCode.MUST_BE_POSITIVE, {})
 
 
-@pytest.mark.parametrize(("campo", "minimo"), [("Porcentagem", "0.0001"), ("Valor", "0.01")])
-def test_menor_parcela_positiva_e_aceita(campo: str, minimo: str) -> None:
+def test_menor_parcela_positiva_e_aceita() -> None:
     dados = _valido()
-    dados["to_FormPag"][0][campo] = Decimal(minimo)
-    Contract.criar(dados)
+    parcelas = dados["to_FormPag"]
+    for p, pct in zip(parcelas, ("0.0001", "33.3333", "66.6666"), strict=True):
+        p["Porcentagem"] = Decimal(pct)  # soma continua 100.0000
+    parcelas[0]["Valor"] = Decimal("0.01")
+    c = Contract.criar(dados)
+    assert (c.installments[0].porcentagem, c.installments[0].valor) == (
+        Decimal("0.0001"),
+        Decimal("0.01"),
+    )
 
 
 @pytest.mark.parametrize("valor", ["-1.5", "0", "-0.000000001", "1164.98"])

@@ -39,8 +39,10 @@ from typing import Final
 
 from app.domain.contract import PARCELA, validar_campo
 from app.domain.errors import ErrorCode, ErrorCollector, indice
+from app.domain.rules import MAX_PARCELAS
 
-MAX_PARCELAS: Final = 36
+__all__ = ["MAX_PARCELAS", "PESO_MAX", "ParcelaCalculada", "calcular_parcelas"]
+
 PESO_MAX: Final = 10_000
 
 _ESCALA_PCT: Final = 4

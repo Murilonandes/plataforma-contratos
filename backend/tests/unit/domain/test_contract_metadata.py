@@ -104,10 +104,6 @@ def test_status_block_e_computed_nunca_sao_entrada() -> None:
 
 # ---- Ordem e Nullable ----------------------------------------------------------
 
-# Decimais calculados pelo servidor (calcular_parcelas): nunca vem do cliente, entao
-# o VO nao os exige; o mapper e a barreira (ValueError se chegarem None).
-_CALCULADOS = {("ParcelasContratoType", "Porcentagem"), ("ParcelasContratoType", "Valor")}
-
 
 @pytest.mark.parametrize("entidade", sorted(ESPECIFICACOES))
 def test_especificacoes_na_ordem_do_metadata(entidade: str) -> None:
@@ -119,23 +115,21 @@ def test_especificacoes_na_ordem_do_metadata(entidade: str) -> None:
 
 
 @pytest.mark.parametrize(("entidade", "c"), _casos(), ids=lambda x: getattr(x, "odata", x))
-def test_decimal_nao_anulavel_e_exigido_salvo_os_calculados(entidade: str, c: Campo) -> None:
-    """Edm.Decimal Nullable=false nao-calculado: None e ``required`` no Contract.criar.
+def test_decimal_nao_anulavel_e_exigido(entidade: str, c: Campo) -> None:
+    """Edm.Decimal Nullable=false: None e ``required`` no Contract.criar, inclusive
+    Porcentagem/Valor (calculados por calcular_parcelas, mas o dominio nao confia nisso).
 
     Independente de FieldControl/Mandatory (que continua espelhado em ``obrigatorio``).
     """
     p = metadata()[entidade][c.odata]
-    esperado = (
-        c.tipo is Tipo.DECIMAL
-        and not p.nullable
-        and not p.mandatory
-        and (entidade, c.odata) not in _CALCULADOS
-    )
+    esperado = c.tipo is Tipo.DECIMAL and not p.nullable and not p.mandatory
     assert c.nao_nulo == esperado
 
 
-def test_decimais_nao_anulaveis_sao_so_os_condition_rate_value() -> None:
+def test_decimais_nao_anulaveis() -> None:
     assert sorted((e, c.odata) for e, c in _casos() if c.nao_nulo) == [
+        ("ParcelasContratoType", "Porcentagem"),
+        ("ParcelasContratoType", "Valor"),
         ("PrecosCabecalhoType", "ConditionRateValue"),
         ("PrecosItemType", "ConditionRateValue"),
     ]

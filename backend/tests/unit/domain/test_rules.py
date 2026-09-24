@@ -7,6 +7,8 @@ com erros de campo e de regra juntos.
 
 from __future__ import annotations
 
+from datetime import date, timedelta
+from decimal import Decimal
 from typing import Any
 
 import pytest
@@ -165,4 +167,148 @@ def test_criar_junta_erro_de_campo_e_de_regra_numa_excecao_so() -> None:
         ("SoldToParty", ErrorCode.REQUIRED, {}),
         ("to_Item", ErrorCode.MIN_ITEMS, {"min": 1}),
         ("to_Partner[1].PartnerFunction", ErrorCode.DUPLICATE_PARTNER_FUNCTION, {"funcao": "Y1"}),
+    ]
+
+
+# ---- to_FormPag: o dominio nao confia em quem montou (M1) --------------------
+
+
+def _parcelas(dados: dict[str, Any]) -> list[dict[str, Any]]:
+    parcelas: list[dict[str, Any]] = dados["to_FormPag"]
+    return parcelas
+
+
+def _n_parcelas(n: int, *, primeira_pct: str, demais_pct: str) -> list[dict[str, Any]]:
+    return [
+        {
+            "Parcela": i + 1,
+            "Porcentagem": Decimal(primeira_pct if i == 0 else demais_pct),
+            "Valor": Decimal("1.00"),
+            "Data": date(2026, 1, 1) + timedelta(days=i),
+            "FormPag": "K",
+            "TransactionCurrency": "BRL",
+        }
+        for i in range(n)
+    ]
+
+
+def test_payload_exemplo_tem_parcelas_validas() -> None:
+    assert len(Contract.criar(payload_exemplo_como_entrada()).installments) == 3
+
+
+def test_contrato_sem_parcelas_e_aceito() -> None:
+    dados = payload_exemplo_como_entrada()
+    dados["to_FormPag"] = []
+    assert Contract.criar(dados).installments == ()
+
+
+@pytest.mark.parametrize("campo", ["Porcentagem", "Valor"])
+@pytest.mark.parametrize("ausente", ["chave", None])
+def test_porcentagem_e_valor_sao_obrigatorios(campo: str, ausente: str | None) -> None:
+    dados = payload_exemplo_como_entrada()
+    if ausente == "chave":
+        del _parcelas(dados)[1][campo]
+    else:
+        _parcelas(dados)[1][campo] = None
+    assert _erros(dados) == [(f"to_FormPag[1].{campo}", ErrorCode.REQUIRED, {})]
+
+
+def test_parcelas_fora_de_ordem() -> None:
+    dados = payload_exemplo_como_entrada()
+    _parcelas(dados)[1]["Parcela"] = 3
+    _parcelas(dados)[2]["Parcela"] = 2
+    assert _erros(dados) == [
+        ("to_FormPag[1].Parcela", ErrorCode.INSTALLMENT_OUT_OF_SEQUENCE, {"esperado": 2}),
+        ("to_FormPag[2].Parcela", ErrorCode.INSTALLMENT_OUT_OF_SEQUENCE, {"esperado": 3}),
+    ]
+
+
+def test_parcelas_que_nao_comecam_em_1() -> None:
+    dados = payload_exemplo_como_entrada()
+    for i, p in enumerate(_parcelas(dados)):
+        p["Parcela"] = i + 2
+    assert [e[0] for e in _erros(dados)] == [
+        "to_FormPag[0].Parcela",
+        "to_FormPag[1].Parcela",
+        "to_FormPag[2].Parcela",
+    ]
+
+
+def test_parcela_repetida() -> None:
+    dados = payload_exemplo_como_entrada()
+    _parcelas(dados)[2]["Parcela"] = 2
+    assert _erros(dados) == [
+        ("to_FormPag[2].Parcela", ErrorCode.INSTALLMENT_OUT_OF_SEQUENCE, {"esperado": 3}),
+    ]
+
+
+def test_parcela_com_erro_de_campo_nao_gera_erro_de_sequencia() -> None:
+    dados = payload_exemplo_como_entrada()
+    _parcelas(dados)[1]["Parcela"] = 0
+    assert _erros(dados) == [("to_FormPag[1].Parcela", ErrorCode.MUST_BE_POSITIVE, {})]
+
+
+def test_elemento_invalido_em_to_formpag_nao_gera_erro_de_sequencia() -> None:
+    dados = payload_exemplo_como_entrada()
+    _parcelas(dados).insert(1, "x")
+    assert _erros(dados) == [("to_FormPag[1]", ErrorCode.INVALID_TYPE, {"tipo": "objeto"})]
+
+
+@pytest.mark.parametrize(("ultima", "soma"), [("33.3334", "100.0001"), ("33.3332", "99.9999")])
+def test_soma_das_porcentagens_precisa_ser_100(ultima: str, soma: str) -> None:
+    dados = payload_exemplo_como_entrada()
+    _parcelas(dados)[2]["Porcentagem"] = Decimal(ultima)
+    assert _erros(dados) == [("to_FormPag", ErrorCode.INSTALLMENT_PERCENT_SUM, {"soma": soma})]
+
+
+def test_soma_e_exata_com_escala_4() -> None:
+    dados = payload_exemplo_como_entrada()
+    dados["to_FormPag"] = _n_parcelas(1, primeira_pct="100", demais_pct="0")
+    assert Contract.criar(dados).installments[0].porcentagem == Decimal("100.0000")
+
+
+def test_soma_nao_e_conferida_com_porcentagem_invalida() -> None:
+    dados = payload_exemplo_como_entrada()
+    _parcelas(dados)[2]["Porcentagem"] = Decimal("-1")
+    assert _erros(dados) == [("to_FormPag[2].Porcentagem", ErrorCode.MUST_BE_POSITIVE, {})]
+
+
+def test_datas_das_parcelas_estritamente_crescentes() -> None:
+    dados = payload_exemplo_como_entrada()
+    parcelas = _parcelas(dados)
+    parcelas[1]["Data"] = parcelas[0]["Data"]
+    parcelas[2]["Data"] = parcelas[0]["Data"] - timedelta(days=1)
+    assert _erros(dados) == [
+        ("to_FormPag[1].Data", ErrorCode.DATES_NOT_INCREASING, {}),
+        ("to_FormPag[2].Data", ErrorCode.DATES_NOT_INCREASING, {}),
+    ]
+
+
+def test_data_ausente_nao_e_comparada() -> None:
+    """Data e opcional (Edm.Date nullable); so pares consecutivos presentes sao comparados."""
+    dados = payload_exemplo_como_entrada()
+    parcelas = _parcelas(dados)
+    del parcelas[1]["Data"]
+    parcelas[2]["Data"] = parcelas[0]["Data"] + timedelta(days=1)
+    assert Contract.criar(dados).installments[1].data is None
+
+
+def test_limite_de_36_parcelas() -> None:
+    dados = payload_exemplo_como_entrada()
+    dados["to_FormPag"] = _n_parcelas(36, primeira_pct="2.7770", demais_pct="2.7778")
+    assert len(Contract.criar(dados).installments) == 36
+    dados["to_FormPag"] = _n_parcelas(37, primeira_pct="2.7028", demais_pct="2.7027")
+    assert _erros(dados) == [("to_FormPag", ErrorCode.MAX_ITEMS, {"max": 36})]
+
+
+def test_violacoes_de_parcela_acumulam() -> None:
+    dados = payload_exemplo_como_entrada()
+    parcelas = _parcelas(dados)
+    parcelas[0]["Parcela"] = 9
+    parcelas[1]["Porcentagem"] = Decimal("1")
+    parcelas[2]["Data"] = parcelas[1]["Data"]
+    assert _erros(dados) == [
+        ("to_FormPag[0].Parcela", ErrorCode.INSTALLMENT_OUT_OF_SEQUENCE, {"esperado": 1}),
+        ("to_FormPag", ErrorCode.INSTALLMENT_PERCENT_SUM, {"soma": "67.6667"}),
+        ("to_FormPag[2].Data", ErrorCode.DATES_NOT_INCREASING, {}),
     ]

@@ -51,6 +51,8 @@ class ErrorCode(StrEnum):
     ACTOR_NOT_ALLOWED = "actor_not_allowed"
     INVALID_FORMAT = "invalid_format"
     NOT_APPLICABLE = "not_applicable"
+    INSTALLMENT_OUT_OF_SEQUENCE = "installment_out_of_sequence"
+    INSTALLMENT_PERCENT_SUM = "installment_percent_sum"
     DUPLICATE_PARTNER_FUNCTION = "duplicate_partner_function"
     PARTNER_IDENTIFIER_REQUIRED = "partner_identifier_required"
     UNKNOWN_FIELD = "unknown_field"
@@ -98,6 +100,14 @@ MENSAGENS: Final[Mapping[ErrorCode, tuple[str, tuple[str, ...]]]] = MappingProxy
         ),
         ErrorCode.INVALID_FORMAT: ("campo '{campo}' fora do formato: {formato}", ("formato",)),
         ErrorCode.NOT_APPLICABLE: ("campo '{campo}' nao se aplica a esta transicao", ()),
+        ErrorCode.INSTALLMENT_OUT_OF_SEQUENCE: (
+            "campo '{campo}' deve ser {esperado} (parcelas numeradas de 1 a N, na ordem)",
+            ("esperado",),
+        ),
+        ErrorCode.INSTALLMENT_PERCENT_SUM: (
+            "a soma das porcentagens das parcelas deve ser 100.0000, e {soma}",
+            ("soma",),
+        ),
         ErrorCode.DUPLICATE_PARTNER_FUNCTION: (
             "parceiro duplicado para funcao '{funcao}'",
             ("funcao",),

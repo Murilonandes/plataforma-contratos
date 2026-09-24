@@ -156,6 +156,18 @@ def test_field_error_monta_mensagem_em_pt_br_a_partir_do_code() -> None:
             {},
             "campo 'sap_contract_number' nao se aplica a esta transicao",
         ),
+        (
+            "to_FormPag[1].Parcela",
+            ErrorCode.INSTALLMENT_OUT_OF_SEQUENCE,
+            {"esperado": 2},
+            "campo 'Parcela' deve ser 2 (parcelas numeradas de 1 a N, na ordem)",
+        ),
+        (
+            "to_FormPag",
+            ErrorCode.INSTALLMENT_PERCENT_SUM,
+            {"soma": "99.9999"},
+            "a soma das porcentagens das parcelas deve ser 100.0000, e 99.9999",
+        ),
     ],
 )
 def test_mensagens_exatas(
@@ -308,6 +320,8 @@ _PARAMS_EXEMPLO: dict[ErrorCode, dict[str, object]] = {
     ErrorCode.MIN_LENGTH: {"min": 10},
     ErrorCode.ACTOR_NOT_ALLOWED: {"esperado": "admin", "recebido": "worker"},
     ErrorCode.INVALID_FORMAT: {"formato": "somente digitos"},
+    ErrorCode.INSTALLMENT_OUT_OF_SEQUENCE: {"esperado": 2},
+    ErrorCode.INSTALLMENT_PERCENT_SUM: {"soma": "99.9999"},
 }
 
 
