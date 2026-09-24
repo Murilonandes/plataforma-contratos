@@ -1,7 +1,7 @@
 """Enums do dominio: SO conceitos nossos.
 
 - ``ContractStatus``: os 8 estados da maquina (ARCHITECTURE §4).
-- ``TransitionEvent``: os 15 eventos da matriz de 21 transicoes (§4).
+- ``TransitionEvent``: os 19 eventos da matriz de 25 transicoes (§4).
 - ``ActorKind``: quem dispara a transicao (``user``, ``admin``, ``worker``,
   ``system``), em minusculo como no §4.
 
@@ -44,6 +44,10 @@ class TransitionEvent(StrEnum):
     LOCK_EXPIRADO_COM_ENVIO = "LOCK_EXPIRADO_COM_ENVIO"
     LIBERAR_REENVIO = "LIBERAR_REENVIO"
     RECONCILIAR_PARA_CRIADO = "RECONCILIAR_PARA_CRIADO"
+    CONFERENCIA_DIVERGENTE = "CONFERENCIA_DIVERGENTE"
+    FALHA_APOS_RESPOSTA = "FALHA_APOS_RESPOSTA"
+    FALHA_NAO_CLASSIFICADA_ANTES_ENVIO = "FALHA_NAO_CLASSIFICADA_ANTES_ENVIO"
+    FALHA_NAO_CLASSIFICADA_APOS_ENVIO = "FALHA_NAO_CLASSIFICADA_APOS_ENVIO"
 
 
 class ActorKind(StrEnum):

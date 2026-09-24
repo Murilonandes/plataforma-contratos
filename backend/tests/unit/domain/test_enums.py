@@ -19,7 +19,7 @@ import pytest
 
 from app.domain import enums
 from app.domain.enums import ActorKind, ContractStatus, TransitionEvent
-from tests.unit.domain._referencias_arquitetura import linhas_matriz
+from tests.unit.domain._referencias_arquitetura import linhas_matriz, total_declarado
 
 _ESTADOS = {
     "RASCUNHO",
@@ -47,6 +47,10 @@ _EVENTOS = {
     "LOCK_EXPIRADO_COM_ENVIO",
     "LIBERAR_REENVIO",
     "RECONCILIAR_PARA_CRIADO",
+    "CONFERENCIA_DIVERGENTE",
+    "FALHA_APOS_RESPOSTA",
+    "FALHA_NAO_CLASSIFICADA_ANTES_ENVIO",
+    "FALHA_NAO_CLASSIFICADA_APOS_ENVIO",
 }
 _ATORES = {"user", "admin", "worker", "system"}
 
@@ -66,7 +70,7 @@ def test_contract_status_tem_exatamente_os_8_estados() -> None:
 
 def test_transition_event_tem_exatamente_os_eventos_da_matriz() -> None:
     assert {e.name for e in TransitionEvent} == _EVENTOS
-    assert len(TransitionEvent) == 15
+    assert len(TransitionEvent) == 19
 
 
 def test_actor_kind_tem_os_4_atores() -> None:
@@ -105,8 +109,9 @@ def test_construcao_por_valor_e_rejeicao_de_valor_desconhecido() -> None:
 # ---- Sincronia com o ARCHITECTURE §4 -----------------------------------------
 
 
-def test_matriz_do_architecture_tem_21_transicoes() -> None:
-    assert len(_matriz()) == 21
+def test_matriz_do_architecture_tem_25_transicoes() -> None:
+    assert len(_matriz()) == 25
+    assert total_declarado() == len(_matriz())  # a linha 'Total' acompanha a tabela
 
 
 def test_estados_da_matriz_sao_exatamente_os_do_enum() -> None:

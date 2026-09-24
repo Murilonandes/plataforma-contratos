@@ -82,6 +82,10 @@ Estados terminais: `CRIADO`, `CANCELADO`. Editáveis pelo vendedor: `RASCUNHO` e
 | ENVIANDO       | SAP_5XX_APOS_POST          | INCERTO       | worker   | não     | Body enviado, 5xx do SAP. LUW não é garantia. **Sem retry**       |
 | ENVIANDO       | LOCK_EXPIRADO_SEM_ENVIO    | NA_FILA       | system   | não     | Worker morreu; **não** há linha em `contract_submissions`         |
 | ENVIANDO       | LOCK_EXPIRADO_COM_ENVIO    | INCERTO       | system   | não     | Worker morreu; **há** linha em `contract_submissions`             |
+| ENVIANDO       | CONFERENCIA_DIVERGENTE     | ERRO_TECNICO  | worker   | não     | Snapshot diverge do recálculo das parcelas; body **não** enviado. Alerta (bug no cálculo) |
+| ENVIANDO       | FALHA_APOS_RESPOSTA        | INCERTO       | worker   | não     | Resposta lida, nosso processamento falhou (ex.: 201 sem `SalesContract` válido). **Sem retry** |
+| ENVIANDO       | FALHA_NAO_CLASSIFICADA_ANTES_ENVIO | ERRO_TECNICO | worker | não  | Exceção não listada **sem** marcador `request_sent_at` commitado |
+| ENVIANDO       | FALHA_NAO_CLASSIFICADA_APOS_ENVIO  | INCERTO     | worker   | não  | Exceção não listada **com** marcador commitado. **Sem retry**    |
 | ERRO_NEGOCIO   | SUBMETER                   | NA_FILA       | user     | não     | Após correção do vendedor                                         |
 | ERRO_NEGOCIO   | CANCELAR                   | CANCELADO     | user     | sim     |                                                                   |
 | ERRO_TECNICO   | LIBERAR_REENVIO            | NA_FILA       | admin    | sim     |                                                                   |
@@ -90,7 +94,7 @@ Estados terminais: `CRIADO`, `CANCELADO`. Editáveis pelo vendedor: `RASCUNHO` e
 | INCERTO        | LIBERAR_REENVIO            | NA_FILA       | admin    | sim     | Conferiu VA43 e não achou; libera reenvio                         |
 | INCERTO        | CANCELAR                   | CANCELADO     | admin    | sim     |                                                                   |
 
-**Total: 21 transições válidas.** Qualquer par `(estado, evento)` fora da matriz é `InvalidTransitionError`, antes de olhar qualquer dado. A tabela acima é a fonte única: `test_states` lê as 21 linhas e confere a matriz do código campo a campo.
+**Total: 25 transições válidas.** Qualquer par `(estado, evento)` fora da matriz é `InvalidTransitionError`, antes de olhar qualquer dado. A tabela acima é a fonte única: `test_states` lê as 25 linhas e confere a matriz do código campo a campo; `test_enums` confere que a linha de total acompanha a tabela.
 
 **Dados por transição** (`domain/states.py`, validados de forma acumulada numa única `DomainValidationError`):
 
@@ -115,6 +119,7 @@ Enquanto o worker está vivo, o evento é escolhido pelo **tipo da exceção `ht
 | envio do body falhou              | `httpx.WriteError`, `httpx.WriteTimeout`                            | `CONEXAO_CAIDA_APOS_POST` (conservador — write parcial pode ter chegado) |
 | resposta não veio (timeout)       | `httpx.ReadTimeout`                                                 | `TIMEOUT_APOS_POST`        |
 | resposta não veio (conexão)       | `httpx.ReadError`, `httpx.RemoteProtocolError`                      | `CONEXAO_CAIDA_APOS_POST`  |
+| qualquer outra exceção            | não listada acima                                                   | `FALHA_NAO_CLASSIFICADA_ANTES_ENVIO` se o marcador `request_sent_at` **não** foi commitado; `FALHA_NAO_CLASSIFICADA_APOS_ENVIO` se foi (conservador) |
 
 **Respostas HTTP — precedência de 4xx (primeiro match vence):**
 
@@ -126,6 +131,10 @@ Enquanto o worker está vivo, o evento é escolhido pelo **tipo da exceção `ht
 6. Qualquer outro `4xx` **sem** `error.details` → `SAP_4XX_TECNICO` (default conservador; admin avalia).
 
 **Caso especial CSRF 403.** Se a resposta for `403` com header `x-csrf-token: Required`, o SAP rejeitou **sem processar** — refetch do token + reenvio do POST **uma vez** dentro da mesma tentativa. Se o segundo POST falhar por qualquer razão, aí sim classifica pela precedência acima. Se falhar por CSRF de novo, `SAP_4XX_TECNICO`.
+
+**Falha no nosso processamento depois de ler o status.** Se a resposta chegou e o que falhou foi o nosso processamento (201 com JSON inválido, `SalesContract` ausente ou fora do formato, exceção no parser ou na transição), o evento é `FALHA_APOS_RESPOSTA` → `INCERTO`, com o `response_body` cru gravado. Nunca `ERRO_TECNICO` nem retry: o SAP pode ter criado o contrato.
+
+**Conferência do snapshot.** Antes do CSRF e do marcador, o worker recalcula as parcelas do snapshot (mesma versão do algoritmo) e compara. Divergência → `CONFERENCIA_DIVERGENTE` → `ERRO_TECNICO`, com alerta (métrica + log `ERROR`): indica bug no cálculo. `LIBERAR_REENVIO` não resolve (o snapshot é o mesmo); a saída é cancelar e resubmeter (`docs/RUNBOOK.md`). Versão do algoritmo diferente da atual: envia sem conferir, `detalhe` `conferencia=pulada_versao` e log `WARNING`.
 
 ### `request_sent_at` e recuperação de lock expirado
 

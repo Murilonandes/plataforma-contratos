@@ -1,9 +1,9 @@
 """Maquina de estados (``states.py``).
 
-Fonte unica: a matriz do ARCHITECTURE §4. O teste le as 21 linhas e confere a
+Fonte unica: a matriz do ARCHITECTURE §4. O teste le as 25 linhas e confere a
 ``MATRIZ`` do codigo campo a campo (de, evento, para, ator, justificativa) e o
 conjunto que exige ``sap_contract_number`` (linhas cuja Observacao o cita).
-Exaustivo 8 estados x 15 eventos: fora da matriz -> ``InvalidTransitionError``.
+Exaustivo 8 estados x 19 eventos: fora da matriz -> ``InvalidTransitionError``.
 
 Dados por transicao (erros acumulados numa ``DomainValidationError``):
 - ``ator.kind`` = coluna Ator; ``ator.identifier`` nao vazio.
@@ -94,7 +94,7 @@ def test_matriz_do_codigo_e_a_tabela_do_architecture_campo_a_campo() -> None:
         (de.value, ev.value): (r.para.value, r.ator.value, r.exige_justificativa)
         for (de, ev), r in MATRIZ.items()
     }
-    assert len(linhas_matriz()) == 21
+    assert len(linhas_matriz()) == 25
     assert codigo == doc
 
 
@@ -112,12 +112,12 @@ def test_matriz_e_imutavel() -> None:
         MATRIZ[(S.CRIADO, E.SUBMETER)] = MATRIZ[(S.RASCUNHO, E.SUBMETER)]  # type: ignore[index]
 
 
-# ---- Exaustivo: 8 estados x 15 eventos ---------------------------------------
+# ---- Exaustivo: 8 estados x 19 eventos ---------------------------------------
 
 
-def test_exaustivo_tem_120_pares_21_validos() -> None:
-    assert len(_VALIDAS) + len(_INVALIDAS) == 8 * 15
-    assert len(_VALIDAS) == 21
+def test_exaustivo_tem_152_pares_25_validos() -> None:
+    assert len(_VALIDAS) + len(_INVALIDAS) == 8 * 19
+    assert len(_VALIDAS) == 25
 
 
 @pytest.mark.parametrize(("de", "evento"), _VALIDAS, ids=_ids)
@@ -176,6 +176,25 @@ def test_so_falha_antes_do_post_ou_lock_sem_envio_voltam_para_a_fila() -> None:
 )
 def test_post_que_pode_ter_chegado_vai_para_incerto(evento: E) -> None:
     assert transition(S.ENVIANDO, evento, **_validos(S.ENVIANDO, evento)).para is S.INCERTO
+
+
+@pytest.mark.parametrize(
+    ("evento", "para"),
+    [
+        (E.CONFERENCIA_DIVERGENTE, S.ERRO_TECNICO),  # nada enviado: snapshot diverge
+        (E.FALHA_NAO_CLASSIFICADA_ANTES_ENVIO, S.ERRO_TECNICO),  # sem marcador commitado
+        (E.FALHA_APOS_RESPOSTA, S.INCERTO),  # SAP respondeu, nos falhamos
+        (E.FALHA_NAO_CLASSIFICADA_APOS_ENVIO, S.INCERTO),  # com marcador
+    ],
+)
+def test_eventos_de_falha_do_worker(evento: E, para: S) -> None:
+    r = _regra(S.ENVIANDO, evento)
+    assert (r.para, r.ator, r.exige_justificativa, r.exige_numero_sap) == (
+        para,
+        K.WORKER,
+        False,
+        False,
+    )
 
 
 def test_saida_de_incerto_e_so_de_admin_com_justificativa() -> None:
@@ -252,7 +271,7 @@ def test_linhas_de_cada_regime_de_justificativa() -> None:
         (S.RASCUNHO, E.CANCELAR),
         (S.ERRO_NEGOCIO, E.SUBMETER),
     }
-    assert len(_MAQUINA) == 11
+    assert len(_MAQUINA) == 15
     assert len(_HUMANO) == 10
 
 

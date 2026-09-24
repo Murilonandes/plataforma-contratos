@@ -1,7 +1,7 @@
 """Maquina de estados do contrato (ARCHITECTURE §4).
 
 A ``MATRIZ`` espelha a tabela do §4, que e a fonte unica: ``test_states`` le as
-21 linhas do ``.md`` e confere campo a campo. Par ``(estado, evento)`` fora da
+25 linhas do ``.md`` e confere campo a campo. Par ``(estado, evento)`` fora da
 matriz -> ``InvalidTransitionError``, antes de olhar qualquer dado. E esta
 tabela que decide quando NAO reenviar ao SAP: de ``ENVIANDO``, so
 ``FALHA_ANTES_POST`` e ``LOCK_EXPIRADO_SEM_ENVIO`` voltam para ``NA_FILA``.
@@ -108,6 +108,13 @@ MATRIZ: Final[Mapping[tuple[ContractStatus, TransitionEvent], Regra]] = MappingP
     # Recuperacao de lock expirado: o marcador e a linha em contract_submissions.
     (S.ENVIANDO, E.LOCK_EXPIRADO_SEM_ENVIO): Regra(S.NA_FILA, K.SYSTEM),
     (S.ENVIANDO, E.LOCK_EXPIRADO_COM_ENVIO): Regra(S.INCERTO, K.SYSTEM),
+    # Snapshot diverge do recalculo (antes do CSRF e do marcador): nada enviado.
+    (S.ENVIANDO, E.CONFERENCIA_DIVERGENTE): Regra(S.ERRO_TECNICO, K.WORKER),
+    # SAP respondeu e o NOSSO processamento falhou: pode ter criado. Sem retry.
+    (S.ENVIANDO, E.FALHA_APOS_RESPOSTA): Regra(S.INCERTO, K.WORKER),
+    # Excecao nao listada: o marcador request_sent_at decide (conservador).
+    (S.ENVIANDO, E.FALHA_NAO_CLASSIFICADA_ANTES_ENVIO): Regra(S.ERRO_TECNICO, K.WORKER),
+    (S.ENVIANDO, E.FALHA_NAO_CLASSIFICADA_APOS_ENVIO): Regra(S.INCERTO, K.WORKER),
     (S.ERRO_NEGOCIO, E.SUBMETER): Regra(S.NA_FILA, K.USER),
     (S.ERRO_NEGOCIO, E.CANCELAR): Regra(S.CANCELADO, K.USER, exige_justificativa=True),
     (S.ERRO_TECNICO, E.LIBERAR_REENVIO): Regra(S.NA_FILA, K.ADMIN, exige_justificativa=True),

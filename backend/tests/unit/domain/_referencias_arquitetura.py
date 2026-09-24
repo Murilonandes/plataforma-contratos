@@ -7,6 +7,7 @@ A tabela do ``.md`` e a fonte unica da maquina de estados: ``test_enums`` e
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from functools import cache
 from pathlib import Path
@@ -31,6 +32,15 @@ class LinhaMatriz:
 
 
 _JUSTIF = {"sim": True, "não": False}
+_TOTAL = re.compile(r"\*\*Total: (\d+) transições válidas\.\*\*")
+
+
+def total_declarado() -> int:
+    """O N de '**Total: N transições válidas.**' no §4 (tem que bater com as linhas)."""
+    achado = _TOTAL.search(achar_architecture().read_text(encoding="utf-8"))
+    if achado is None:
+        raise ValueError("linha de total nao encontrada no §4")
+    return int(achado.group(1))
 
 
 @cache
@@ -38,9 +48,11 @@ def linhas_matriz() -> tuple[LinhaMatriz, ...]:
     """Cada linha da matriz do §4, na ordem do documento."""
     texto = achar_architecture().read_text(encoding="utf-8")
     inicio = texto.index("**Matriz de transições:**")
-    fim = texto.index("**Total: 21 transições válidas.**")
+    fim = _TOTAL.search(texto, inicio)
+    if fim is None:
+        raise ValueError("linha '**Total: N transições válidas.**' nao encontrada no §4")
     linhas: list[LinhaMatriz] = []
-    for linha in texto[inicio:fim].splitlines():
+    for linha in texto[inicio : fim.start()].splitlines():
         celulas = [c.strip() for c in linha.strip().strip("|").split("|")]
         if len(celulas) < 6 or celulas[0] in {"De", "---"}:
             continue

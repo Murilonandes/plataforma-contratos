@@ -1,7 +1,9 @@
 # Plano — Fase 2 (Adapter SAP + worker + outbox)
 
-> Status: **revisão 2, aguardando aprovação final** (D1, D2, D8 e o default `INCERTO` aprovados;
-> D6 rejeitada e substituída por D6′; D11–D14 novas). Nenhum código da Fase 2 começa antes disso.
+> Status: **revisão 3**. Aprovadas: D1, D2, D6′, D8, D11, D12 (com a divisão pelo marcador), D13,
+> D14 e o default `INCERTO`. **Aguardando a revisão do dono do projeto:** D3, D4, D5, D7, D9, D10,
+> D15 e a lista de arquivos. Nenhum código da Fase 2 começa antes disso (a 2.1b já foi feita,
+> a pedido, por ser só domínio).
 > Fonte da verdade do design: `docs/ARCHITECTURE.md` (§4 máquina de estados e classificação de
 > falhas, §6 modelo de dados, §7 integração SAP, §10 observabilidade). Regras invioláveis: `CLAUDE.md`.
 
@@ -47,10 +49,11 @@ Tudo auditado em `contract_events` e `contract_submissions`, e comprovado num sm
 | D7 | O que o worker grava em `request_body` | Os bytes exatos de `to_json(payload)`, parseados para JSONB. Headers **não** são gravados, então o `Authorization` nunca chega ao banco. |
 | D8 ✅ | Classificação de resultado | Módulo **puro** `infrastructure/sap/classificacao.py`: exceção do httpx ou (status, headers, corpo) → `TransitionEvent` + detalhe estruturado, seguindo as duas tabelas da §4. Teste exaustivo lê as tabelas do `.md`, como o `test_states`. **Entra no gate de mutação**, porque decide quando não reenviar. |
 | D9 | Número do contrato na resposta 201 | Lido de `SalesContract` e normalizado pela própria `transition` (VBELN canônico). Qualquer falha **no nosso processamento** de um 201 vai para `INCERTO` (D12), nunca para `CRIADO`, `ERRO_TECNICO` ou retry (`TODO(decisão #3)`). |
-| D11 | Divergência na conferência do snapshot (evento novo na §4) | Novo evento **`CONFERENCIA_DIVERGENTE`**: `ENVIANDO` → `ERRO_TECNICO`, ator `worker`, sem justificativa, com `detalhe` (parcela, campo). A conferência roda **depois** de `WORKER_PEGOU` e **antes** do CSRF e do marcador, então é garantido que nada foi enviado. Consequência: `LIBERAR_REENVIO` reenvia o mesmo snapshot, e a conferência diverge de novo; a saída é `CANCELAR` e resubmeter. **Pendente:** se a versão do algoritmo no snapshot for diferente da atual, proponho **não** conferir e registrar `conferencia=pulada_versao` no `detalhe` do `WORKER_PEGOU`, porque o snapshot é a fonte da verdade. A alternativa seria tratar como divergência, o que travaria a fila inteira a cada troca de algoritmo. |
-| D12 | Falha no nosso processamento depois de ler o status (evento novo na §4) | Novo evento **`FALHA_APOS_RESPOSTA`**: `ENVIANDO` → `INCERTO`, ator `worker`. Vale para qualquer exceção depois de ler o status: 201 com JSON inválido, `SalesContract` ausente ou fora do formato, erro no parser ou na transição. **Nunca** `ERRO_TECNICO` nem retry. O `response_body` é gravado **cru**: a coluna passa a ser `TEXT` (limite de 1 MiB, truncamento registrado), mais `response_json` `JSONB` só quando o corpo for JSON válido, porque JSON inválido não cabe em `JSONB`. A exceção não listada durante o POST (default aprovado) usa o evento **`FALHA_NAO_CLASSIFICADA`** → `INCERTO`, separado para a auditoria distinguir "SAP respondeu e nós falhamos" de "não sabemos o que aconteceu". A matriz passa de 21 para **24** transições e de 15 para **18** eventos. |
-| D13 | Teste de caos | Exceção injetada em **cada ponto** entre o commit do marcador e o commit do resultado: antes do POST, durante o POST, depois de ler o status, no parse, na transição, na gravação da submissão, do evento e do job, e no commit final. Nos testes com fakes, o ponto é um gancho enumerado. Na integração, o processo é derrubado de verdade e o lock é recuperado. Em **nenhum** caso o contrato volta para `NA_FILA` nem o job é reagendado: o destino é `INCERTO`, direto (`FALHA_APOS_RESPOSTA`/`FALHA_NAO_CLASSIFICADA`) ou via `LOCK_EXPIRADO_COM_ENVIO`. |
-| D14 | `contract_snapshots` imutável | `REVOKE UPDATE, DELETE` no papel da aplicação, como em `contract_events`. O teste de integração tenta atualizar e espera erro. |
+| D11 ✅ | Divergência na conferência do snapshot (evento novo na §4) | Novo evento **`CONFERENCIA_DIVERGENTE`**: `ENVIANDO` → `ERRO_TECNICO`, ator `worker`, sem justificativa, com `detalhe` (parcela, campo). A conferência roda **depois** de `WORKER_PEGOU` e **antes** do CSRF e do marcador, então é garantido que nada foi enviado. Consequência: `LIBERAR_REENVIO` reenvia o mesmo snapshot, e a conferência diverge de novo; a saída é `CANCELAR` e resubmeter. **Alerta:** divergência indica bug no cálculo, então gera métrica + log `ERROR` (D15); a saída documentada no `docs/RUNBOOK.md` é cancelar e resubmeter. **Versão do algoritmo diferente da atual:** envia **sem** conferir, com `conferencia=pulada_versao` no `detalhe` do `WORKER_PEGOU` e log `WARNING` (aprovado). |
+| D12 ✅ | Falha no nosso processamento depois de ler o status (evento novo na §4) | Novo evento **`FALHA_APOS_RESPOSTA`**: `ENVIANDO` → `INCERTO`, ator `worker`. Vale para qualquer exceção depois de ler o status: 201 com JSON inválido, `SalesContract` ausente ou fora do formato, erro no parser ou na transição. **Nunca** `ERRO_TECNICO` nem retry. O `response_body` é gravado **cru**: a coluna passa a ser `TEXT` (limite de 1 MiB, truncamento registrado), mais `response_json` `JSONB` só quando o corpo for JSON válido, porque JSON inválido não cabe em `JSONB`. A exceção não listada é **dividida pelo marcador**: **`FALHA_NAO_CLASSIFICADA_ANTES_ENVIO`** (sem `request_sent_at` commitado) → `ERRO_TECNICO`, e **`FALHA_NAO_CLASSIFICADA_APOS_ENVIO`** (com marcador) → `INCERTO`. A matriz passa de 21 para **25** transições e de 15 para **19** eventos (feito na 2.1b). |
+| D13 ✅ | Teste de caos | Exceção injetada em **cada ponto** entre o commit do marcador e o commit do resultado: antes do POST, durante o POST, depois de ler o status, no parse, na transição, na gravação da submissão, do evento e do job, e no commit final. Nos testes com fakes, o ponto é um gancho enumerado. Na integração, o processo é derrubado de verdade e o lock é recuperado. Em **nenhum** caso o contrato volta para `NA_FILA` nem o job é reagendado: o destino é `INCERTO`, direto (`FALHA_APOS_RESPOSTA`/`FALHA_NAO_CLASSIFICADA`) ou via `LOCK_EXPIRADO_COM_ENVIO`. |
+| D14 ✅ | `contract_snapshots` imutável | `REVOKE UPDATE, DELETE` no papel da aplicação, como em `contract_events`. O teste de integração tenta atualizar e espera erro. |
+| D15 | Alerta de `CONFERENCIA_DIVERGENTE` (métrica) | As métricas Prometheus são da Fase 5. Proposta: porta `Alertas` na aplicação, com `conferencia_divergente(contract_id, detalhe)`. Na Fase 2 ela é implementada com log `ERROR` (evento `alerta_conferencia_divergente`) e um contador `contracts_conferencia_divergente_total` via `prometheus_client`, que é dependência nova, ainda sem endpoint `/metrics`. Na Fase 5, o `/metrics` passa a expor o contador e entra a regra de alerta. |
 | D10 | Testes de integração | `testcontainers[postgres]` como dependência de dev, com marcador `integration` fora do `pytest` padrão e um job `integration` novo no CI. O caso central é a concorrência de dois workers com `SKIP LOCKED`. |
 
 ## Ordem de execução
@@ -82,20 +85,21 @@ Novas configs, validadas no startup e cobertas por teste:
 **Arquivos:** △ `backend/app/settings.py`, △ `backend/tests/unit/test_settings*.py`,
 △ `infra/.env.example`, △ `infra/compose.dev.yml` (secret do banco no `api` e no `worker`)
 
-## Tarefa 2.1b — Matriz da §4 com os eventos novos (D11, D12)
+## Tarefa 2.1b — Matriz da §4 com os eventos novos (D11, D12) — ✅ FEITA
 
-- **ARCHITECTURE §4:** três linhas novas na matriz e nas tabelas de classificação.
-  - `ENVIANDO -CONFERENCIA_DIVERGENTE-> ERRO_TECNICO` (worker)
-  - `ENVIANDO -FALHA_APOS_RESPOSTA-> INCERTO` (worker)
-  - `ENVIANDO -FALHA_NAO_CLASSIFICADA-> INCERTO` (worker)
-  - O total passa a **24**.
-- **Código:** `enums.py` (18 eventos) e `states.py`, com TDD. Os testes do `test_states` e do
-  `test_enums` já leem a tabela e acompanham sozinhos.
-- **Garantia de reenvio:** `test_so_falha_antes_do_post_ou_lock_sem_envio_voltam_para_a_fila`
-  continua valendo; nenhum evento novo volta para `NA_FILA`.
-
-**Arquivos:** △ `docs/ARCHITECTURE.md`, △ `backend/app/domain/enums.py`, △ `backend/app/domain/states.py`,
-△ `backend/tests/unit/domain/test_enums.py`, △ `backend/tests/unit/domain/test_states.py`
+Feita a pedido do dono do projeto, antes da aprovação do resto do plano, por ser só domínio:
+- **ARCHITECTURE §4:** 25 linhas, com `CONFERENCIA_DIVERGENTE` e
+  `FALHA_NAO_CLASSIFICADA_ANTES_ENVIO` (→ `ERRO_TECNICO`) e `FALHA_APOS_RESPOSTA` e
+  `FALHA_NAO_CLASSIFICADA_APOS_ENVIO` (→ `INCERTO`).
+  - A tabela de exceções ganhou a linha "qualquer outra exceção".
+  - Entraram os parágrafos de falha pós-resposta e de conferência do snapshot.
+- **Código:** `enums.py` com 19 eventos e `states.py` com a `MATRIZ` de 25 linhas.
+- **Testes:**
+  - o parser aceita qualquer `**Total: N**`, e o `test_enums` confere que o N bate com as linhas;
+  - o exaustivo cobre 8 × 19 pares;
+  - a garantia "de `ENVIANDO`, só `FALHA_ANTES_POST` e `LOCK_EXPIRADO_SEM_ENVIO` voltam à fila"
+    continua valendo.
+- **Runbook:** criado o `docs/RUNBOOK.md`, com a entrada de `CONFERENCIA_DIVERGENTE`.
 
 ## Tarefa 2.2 — Portas da aplicação
 
@@ -208,7 +212,9 @@ Mais os tipos de resultado (`RespostaSap`, `MensagemSap`).
 - Exceções: `ConnectError`/`ConnectTimeout` → antes do POST; `WriteError`/`WriteTimeout` → conexão
   caída após POST (conservador); `ReadTimeout` → timeout após POST; `ReadError`/`RemoteProtocolError`
   → conexão caída após POST.
-- **Qualquer exceção não listada → `FALHA_NAO_CLASSIFICADA` → `INCERTO`** (default aprovado).
+- **Qualquer exceção não listada**, decidida pelo marcador `request_sent_at` commitado:
+  sem marcador → `FALHA_NAO_CLASSIFICADA_ANTES_ENVIO` → `ERRO_TECNICO`; com marcador →
+  `FALHA_NAO_CLASSIFICADA_APOS_ENVIO` → `INCERTO`. Há teste para os dois lados da fronteira.
 - **Resposta lida, mas o nosso processamento falhou → `FALHA_APOS_RESPOSTA` → `INCERTO`** (D12).
   Há um teste para cada variante:
   - 201 com corpo vazio, corpo que não é JSON, JSON sem `SalesContract` e `SalesContract` `null`,
@@ -233,7 +239,9 @@ Mais os tipos de resultado (`RespostaSap`, `MensagemSap`).
 - **`process_outbox_job` (D2):**
   - pega o job e aplica `WORKER_PEGOU`;
   - carrega o snapshot e **confere** as parcelas (recalcula com a mesma versão e compara); se
-    divergir, `CONFERENCIA_DIVERGENTE` → `ERRO_TECNICO`, sem CSRF nem POST (D11);
+    divergir, `CONFERENCIA_DIVERGENTE` → `ERRO_TECNICO`, sem CSRF nem POST, com
+    `Alertas.conferencia_divergente` (D11, D15); com versão diferente, pula a conferência
+    (`conferencia=pulada_versao` + `WARNING`);
   - faz o fetch de CSRF (falha → `FALHA_ANTES_POST` ou `_ESGOTOU` conforme `attempts`);
   - grava a submissão (commit);
   - faz o POST;
