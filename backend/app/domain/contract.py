@@ -67,7 +67,7 @@ class Campo:
     maiusculo: bool = False  # IsUpperCase
     escala: int | None = None  # Scale (so decimal)
     precisao: int | None = None  # Precision (so decimal)
-    positivo: bool = False  # regra do dominio (quantidade, numero da parcela)
+    positivo: bool = False  # regra do dominio (quantidade, parcela: numero, % e valor)
 
 
 def _t(odata: str, attr: str, max_len: int | None, *, obrigatorio: bool = False) -> Campo:
@@ -127,6 +127,7 @@ ITEM: Final = (
 PRECO: Final = (
     _t("ConditionType", "condition_type", 4, obrigatorio=True),
     # TODO(decisao #4) numero x string: flag decimal_as_string do mapper
+    # Qualquer sinal (descontos). TODO(decisao #14): quais ConditionType aceitam negativo.
     Campo(
         "ConditionRateValue",
         "condition_rate_value",
@@ -149,9 +150,9 @@ PARCELA: Final = (
     Campo("Parcela", "parcela", _T.INTEIRO, obrigatorio=True, positivo=True),
     # Porcentagem/Valor: Nullable=false, mas calculados por calcular_parcelas (nunca do
     # cliente); o mapper barra None.
-    Campo("Porcentagem", "porcentagem", _T.DECIMAL, escala=4, precisao=15),
+    Campo("Porcentagem", "porcentagem", _T.DECIMAL, escala=4, precisao=15, positivo=True),
     # Scale "variable" (moeda): BRL = 2 casas
-    Campo("Valor", "valor", _T.DECIMAL, escala=2, precisao=15),
+    Campo("Valor", "valor", _T.DECIMAL, escala=2, precisao=15, positivo=True),
     Campo("Data", "data", _T.DATA),  # data base (ZFBDT), nao vencimento
     Campo("FormPag", "form_pag", _T.TEXTO, max_len=1, maiusculo=True),
     _t("TransactionCurrency", "transaction_currency", 3, obrigatorio=True),

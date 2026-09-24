@@ -367,10 +367,31 @@ def test_parcela_precisa_ser_positiva(valor: int) -> None:
     assert _um_erro(dados) == ("to_FormPag[0].Parcela", ErrorCode.MUST_BE_POSITIVE, {})
 
 
-def test_condition_rate_value_negativo_e_permitido() -> None:
+@pytest.mark.parametrize("campo", ["Porcentagem", "Valor"])
+@pytest.mark.parametrize("valor", ["0", "-0.01", "-100"])
+def test_porcentagem_e_valor_da_parcela_precisam_ser_positivos(campo: str, valor: str) -> None:
+    """Defesa em profundidade: calcular_parcelas ja garante > 0; o VO tambem barra."""
     dados = _valido()
-    dados["to_PricingElement"][0]["ConditionRateValue"] = Decimal("-1.5")
-    assert Contract.criar(dados).pricing[0].condition_rate_value == Decimal("-1.5")
+    dados["to_FormPag"][2][campo] = Decimal(valor)
+    assert _um_erro(dados) == (f"to_FormPag[2].{campo}", ErrorCode.MUST_BE_POSITIVE, {})
+
+
+@pytest.mark.parametrize(("campo", "minimo"), [("Porcentagem", "0.0001"), ("Valor", "0.01")])
+def test_menor_parcela_positiva_e_aceita(campo: str, minimo: str) -> None:
+    dados = _valido()
+    dados["to_FormPag"][0][campo] = Decimal(minimo)
+    Contract.criar(dados)
+
+
+@pytest.mark.parametrize("valor", ["-1.5", "0", "-0.000000001", "1164.98"])
+def test_condition_rate_value_aceita_qualquer_sinal(valor: str) -> None:
+    """Descontos/abatimentos podem ser negativos. TODO(decisao #14): quais ConditionType."""
+    dados = _valido()
+    dados["to_PricingElement"][0]["ConditionRateValue"] = Decimal(valor)
+    dados["to_Item"][0]["to_PricingElement"][0]["ConditionRateValue"] = Decimal(valor)
+    c = Contract.criar(dados)
+    assert c.pricing[0].condition_rate_value == Decimal(valor)
+    assert c.items[0].pricing[0].condition_rate_value == Decimal(valor)
 
 
 # ---- Campos que o cliente nao controla ---------------------------------------
