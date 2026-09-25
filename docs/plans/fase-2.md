@@ -357,7 +357,13 @@ Mais os tipos de resultado (`RespostaSap`, `MensagemSap`).
 **Arquivos:** △ `backend/app/entrypoints/worker.py`, △ `backend/tests/unit/test_entrypoints.py`,
 ✱ `backend/tests/integration/test_worker.py`, ✱ `backend/tests/integration/test_caos.py`
 
-## Tarefa 2.10 — Readiness e saúde do SAP
+## Tarefa 2.10 — Readiness e saúde do SAP — ✅ FEITA
+
+> **Feito:** `ready` registra só `db` (`SELECT 1`), com timeout de 3 s por check. `/health/sap`
+> sempre `200`: `ok`, `atrasado` (> 1 h, alerta `sap_heartbeat_atrasado` pela porta `Metrics`),
+> `sem_registro` ou `indisponivel`. O limite é constante (o `ApiSettings` continua sem campo nenhum
+> ligado ao SAP). O heartbeat só anda quando o worker busca token, ou seja, quando há job: fila
+> parada por mais de 1 h também aparece como `atrasado` (ver pendências).
 
 - **`/health/ready` da API não depende do SAP:** só o check `db` (`SELECT 1`), pelo mecanismo
   existente de `readiness_checks`.
