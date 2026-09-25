@@ -185,7 +185,13 @@ Mais os tipos de resultado (`RespostaSap`, `MensagemSap`).
 ✱ `backend/app/infrastructure/db/serializacao.py`, ✱ `backend/tests/integration/test_repos.py`,
 ✱ `backend/tests/integration/test_outbox_concorrencia.py`
 
-## Tarefa 2.5 — Client SAP (httpx) com CSRF e log allowlist
+## Tarefa 2.5 — Client SAP (httpx) com CSRF e log allowlist — ✅ FEITA
+
+> **Feito:** `ClienteSap` cru (não classifica): devolve `RespostaSap` e deixa as exceções do httpx
+> subirem. Falha no refetch depois de 403 CSRF (ou token ausente antes do POST) levanta
+> `FalhaNoRefetchCsrf`/`CsrfIndisponivel`: nenhum POST processado saiu. O **prazo total** com
+> `asyncio.timeout` fica no gateway da 2.7, que é quem classifica o estouro pelo marcador.
+> Loggers `httpx`/`httpcore` presos em `WARNING`.
 
 - **Sessão:** `httpx.AsyncClient` com Basic Auth lido do secret, `saml2=disabled`, `sap-client`,
   timeouts connect 5 s / read 90 s e **`follow_redirects=False` explícito**, com teste.
