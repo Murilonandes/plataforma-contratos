@@ -202,3 +202,25 @@ async def test_algoritmo_injetado_calcula_e_carimba_o_snapshot() -> None:
         Decimal("7766.52"),
         Decimal("7766.52"),
     ]
+
+
+async def test_politica_injetada_e_usada_na_validacao() -> None:
+    c = Cenario()
+    cid = await c.rascunho()
+    with pytest.raises(DomainValidationError) as exc:
+        await submeter_contrato(
+            PedidoSubmissao(
+                contract_id=cid,
+                entrada=entrada_sem_parcelas(),
+                parcelas=PARCELAS,
+                ator=VENDEDOR,
+                correlation_id="c",
+            ),
+            nova_uow=c.uow,
+            relogio=c.relogio,
+            politica={},  # BRF1 nao configurada
+        )
+    assert [(e.path, e.code.value) for e in exc.value.errors] == [
+        ("SalesOrganization", "sales_org_not_configured")
+    ]
+    await _nada_gravado(c, cid, S.RASCUNHO)
