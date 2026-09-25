@@ -224,10 +224,15 @@ def test_worker_respeita_log_level(
 ) -> None:
     sap_env()
     monkeypatch.setenv("LOG_LEVEL", "ERROR")
+
+    async def rodar_falso(_settings: object) -> None:
+        structlog.get_logger("app.worker").info("worker_iniciado")
+
+    monkeypatch.setattr(worker, "rodar", rodar_falso)
     with pytest.raises(SystemExit) as exc:
         worker.main()
     assert exc.value.code == 0
-    assert _linhas(capsys) == []  # o info do stub fica abaixo do nivel
+    assert _linhas(capsys) == []  # o info do laco fica abaixo do nivel
 
 
 def test_worker_falha_sai_1_em_json(

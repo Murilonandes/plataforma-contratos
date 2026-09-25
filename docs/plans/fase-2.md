@@ -332,7 +332,15 @@ Mais os tipos de resultado (`RespostaSap`, `MensagemSap`).
 ✱ `backend/tests/unit/application/test_caos.py`, ✱ `backend/tests/unit/application/test_snapshot.py`,
 ✱ `backend/tests/unit/application/test_process_outbox_job.py`, ✱ `backend/tests/unit/application/test_recover_expired_locks.py`
 
-## Tarefa 2.9 — Loop do worker
+## Tarefa 2.9 — Loop do worker — ✅ FEITA
+
+> **Feito:** `application/worker_loop.py` (`executar_worker`: recover drena antes de cada tentativa,
+> fila vazia espera `WORKER_POLL_INTERVAL_S` interrompível, exceção numa volta é logada só com a
+> classe) e `entrypoints/worker.py` (`rodar`: engine asyncpg, `ClienteSap` + `GatewaySap`,
+> `ProcessadorOutbox`, `MetricasEmLog` — o adapter D15 da 2.2 que faltava —, SIGTERM/SIGINT ligam o
+> `parar` e os handlers são restaurados na saída). Integração: dois processadores concorrentes, o
+> `rodar` de ponta a ponta e o caos real com `os._exit` num processo filho em cada ponto depois do
+> marcador (o recover espera o Postgres soltar o lock da conexão morta).
 
 - `_executar` do `entrypoints/worker.py`:
   - `configure_logging` antes do `Settings`;
