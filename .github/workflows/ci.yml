@@ -199,7 +199,11 @@ jobs:
           # variavel e checa com here-string / [[ ]].
           falha() { echo "FALHOU: $*"; exit 1; }
           test "$(curl -fsS http://127.0.0.1:8000/health/live)" = '{"status":"ok"}'
-          test "$(curl -fsS -o /dev/null -w '%{http_code}' http://127.0.0.1:8000/health/ready)" = "200"
+          # banco inalcancavel (db.invalid): ready = 503 com db fail; o SAP nao entra no ready
+          test "$(curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:8000/health/ready)" = "503"
+          test "$(curl -sS http://127.0.0.1:8000/health/ready)" = '{"status":"fail","checks":{"db":"fail"}}'
+          # /health/sap e informativo: sempre 200, mesmo sem banco
+          test "$(curl -fsS http://127.0.0.1:8000/health/sap)" = '{"status":"indisponivel","ultimo_csrf_ok":null,"idade_s":null}'
           hdr=$(curl -fsS -D - -o /dev/null -H 'X-Request-ID: ci-123' http://127.0.0.1:8000/health/live | tr -d '\r')
           grep -qi '^x-request-id: ci-123$' <<<"$hdr" || falha "X-Request-ID valido nao foi ecoado"
           # X-Request-ID fora de ^[A-Za-z0-9._-]{1,128}$ e trocado por um uuid novo
@@ -288,6 +292,7 @@ jobs:
             echo "FALHOU: postgres nao ficou pronto"; exit 1
           fi
           curl -fsS http://127.0.0.1:8000/health/live
+          curl -fsS http://127.0.0.1:8000/health/ready  # banco do compose de pe: 200
           curl -fsS http://127.0.0.1:5173/healthz
           # worker contra o db do compose: sobe, fica vivo e para limpo no SIGTERM
           dc up -d --no-build --no-deps worker
