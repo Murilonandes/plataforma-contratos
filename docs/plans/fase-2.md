@@ -236,7 +236,15 @@ Mais os tipos de resultado (`RespostaSap`, `MensagemSap`).
 **Arquivos:** ✱ `backend/app/infrastructure/sap/respostas.py`, ✱ `backend/tests/unit/infrastructure/sap/test_respostas.py`,
 ✱ `backend/tests/contract/__init__.py`, ✱ `backend/tests/contract/fixtures/` (vazio até o smoke)
 
-## Tarefa 2.7 — Classificação de resultado (pura, no gate de mutação)
+## Tarefa 2.7 — Classificação de resultado (pura, no gate de mutação) — ✅ FEITA
+
+> **Feito:** `classificacao.py` puro (`classificar_csrf`, `classificar_excecao_post` com o marcador,
+> `classificar_resposta_post`; o `SalesContract` do 201 é validado e canonizado pela própria
+> `transition`) e `gateway.py` (`GatewaySap`, implementa a porta, nunca levanta, prazo total com
+> `asyncio.timeout`: CSRF = connect + read, POST = 3 × (connect + read)). Prazo estourado no POST é
+> exceção não listada → `FALHA_NAO_CLASSIFICADA_APOS_ENVIO` → `INCERTO`; falta de token dentro do
+> fluxo do 403 CSRF → `FALHA_ANTES_POST`. Os testes leem as duas tabelas da §4 do `.md`.
+> `classificacao.py` entrou no `only_mutate`.
 
 - Função pura: resultado do POST (exceção httpx **ou** status + headers + corpo) → `TransitionEvent`
   + detalhe estruturado (`error_class`, `status`).

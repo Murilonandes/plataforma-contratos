@@ -192,7 +192,7 @@ async def test_403_sem_header_csrf_nao_refaz(cliente: ClienteSap) -> None:
 )
 @respx.mock
 async def test_refetch_que_falha_depois_do_403_levanta_falha_no_refetch(
-    cliente: ClienteSap, refetch: object
+    cliente: ClienteSap, refetch: httpx.Response | Exception
 ) -> None:
     respx.get(BASE).mock(side_effect=[_token_ok(), refetch])
     post = respx.post(POST_URL).mock(
