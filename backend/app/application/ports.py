@@ -75,6 +75,19 @@ class RegistroImutavel(Exception):
     """Tentativa de regravar snapshot, marcador de envio ou resposta ja gravados."""
 
 
+class ChaveEmUso(Exception):
+    """Unique de negocio violada (a API da Fase 3 responde 409).
+
+    ``idempotency_key`` repetida, ou ``pedido_sysfertil`` ja usado por outro contrato
+    ATIVO (fora de ``ERRO_NEGOCIO``/``CANCELADO``), na insercao ou ao reativar. A
+    unidade de trabalho continua utilizavel depois deste erro.
+    """
+
+    def __init__(self, campo: Literal["idempotency_key", "pedido_sysfertil"]) -> None:
+        self.campo = campo
+        super().__init__(f"{campo} ja em uso")
+
+
 # ---- Tipos de valor ---------------------------------------------------------------------
 
 
@@ -283,7 +296,10 @@ class Metrics(Protocol):
 
 
 class ContractRepo(Protocol):
-    async def inserir(self, novo: NovoContrato) -> None: ...
+    async def inserir(self, novo: NovoContrato) -> None:
+        """``RegistroImutavel`` se o id ja existe; ``ChaveEmUso`` na unique de negocio.
+        ``pedido_sysfertil`` vazio e gravado como nulo (§6)."""
+        ...
 
     async def obter(self, contract_id: UUID) -> ContratoRegistro | None: ...
 
@@ -295,7 +311,8 @@ class ContractRepo(Protocol):
         para: ContractStatus,
         sap_contract_number: str | None = None,
     ) -> ContratoRegistro:
-        """Levanta ``ConflitoDeVersao`` se a versao nao for a esperada."""
+        """Levanta ``ConflitoDeVersao`` se a versao nao for a esperada e ``ChaveEmUso``
+        se a reativacao colidir no ``pedido_sysfertil``."""
         ...
 
 

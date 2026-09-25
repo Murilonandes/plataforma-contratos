@@ -158,7 +158,11 @@ Mais os tipos de resultado (`RespostaSap`, `MensagemSap`).
 ✱ `backend/tests/integration/conftest.py` (container Postgres por sessão),
 ✱ `backend/tests/integration/test_migracoes.py`, △ `backend/pyproject.toml` (testcontainers, marcador)
 
-## Tarefa 2.4 — Repositórios + Unit of Work (SQLAlchemy async)
+## Tarefa 2.4 — Repositórios + Unit of Work (SQLAlchemy async) — ✅ FEITA
+
+> Bateria de contrato das portas (a mesma dos fakes) roda contra o PostgreSQL 16 no job `integration`.
+> Porta ganhou `ChaveEmUso(campo)` (idempotency_key / pedido_sysfertil ativo; 409 na Fase 3).
+> Inserção que pode colidir roda em SAVEPOINT: a UoW continua válida depois do erro.
 
 - Implementações das portas da 2.2.
 - `pegar_proximo` usa `SELECT … FOR UPDATE SKIP LOCKED LIMIT n`.

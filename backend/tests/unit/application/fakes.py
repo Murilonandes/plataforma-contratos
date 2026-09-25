@@ -21,6 +21,7 @@ from uuid import UUID, uuid4
 
 from app.application import ports
 from app.application.ports import (
+    ChaveEmUso,
     ConflitoDeVersao,
     ContratoRegistro,
     EnvioRegistrado,
@@ -63,6 +64,7 @@ class _Job:
 @dataclass
 class _Estado:
     contratos: dict[UUID, ContratoRegistro] = field(default_factory=dict)
+    chaves: dict[UUID, tuple[str, str | None]] = field(default_factory=dict)  # (idem, pedido)
     snapshots: dict[UUID, SnapshotContrato] = field(default_factory=dict)
     eventos: dict[UUID, list[EventoRegistrado]] = field(default_factory=dict)
     jobs: dict[UUID, _Job] = field(default_factory=dict)
@@ -74,6 +76,7 @@ class _Estado:
         """Copia os containers e os jobs (mutaveis); os demais valores sao imutaveis."""
         return _Estado(
             contratos=dict(self.contratos),
+            chaves=dict(self.chaves),
             snapshots=dict(self.snapshots),
             eventos={k: list(v) for k, v in self.eventos.items()},
             jobs={k: copy.copy(v) for k, v in self.jobs.items()},
@@ -90,16 +93,33 @@ class BancoEmMemoria:
         self.estado = _Estado()
 
 
+_INATIVOS = (ContractStatus.ERRO_NEGOCIO, ContractStatus.CANCELADO)
+
+
 class _Contratos:
     def __init__(self, e: _Estado) -> None:
         self._e = e
 
+    def _pedido_em_uso(self, pedido: str | None, *, exceto: UUID, status: ContractStatus) -> bool:
+        if pedido is None or status in _INATIVOS:
+            return False
+        return any(
+            cid != exceto and p == pedido and self._e.contratos[cid].status not in _INATIVOS
+            for cid, (_, p) in self._e.chaves.items()
+        )
+
     async def inserir(self, novo: NovoContrato) -> None:
         if novo.id in self._e.contratos:
             raise RegistroImutavel(f"contrato {novo.id} ja existe")
+        pedido = novo.pedido_sysfertil or None  # vazio vira nulo (§6)
+        if any(idem == novo.idempotency_key for idem, _ in self._e.chaves.values()):
+            raise ChaveEmUso("idempotency_key")
+        if self._pedido_em_uso(pedido, exceto=novo.id, status=ContractStatus.RASCUNHO):
+            raise ChaveEmUso("pedido_sysfertil")
         self._e.contratos[novo.id] = ContratoRegistro(
             id=novo.id, status=ContractStatus.RASCUNHO, version=1, sap_contract_number=None
         )
+        self._e.chaves[novo.id] = (novo.idempotency_key, pedido)
 
     async def obter(self, contract_id: UUID) -> ContratoRegistro | None:
         return self._e.contratos.get(contract_id)
@@ -115,6 +135,8 @@ class _Contratos:
         atual = self._e.contratos[contract_id]
         if atual.version != version_esperada:
             raise ConflitoDeVersao(f"versao {atual.version}, esperada {version_esperada}")
+        if self._pedido_em_uso(self._e.chaves[contract_id][1], exceto=contract_id, status=para):
+            raise ChaveEmUso("pedido_sysfertil")
         novo = ContratoRegistro(
             id=contract_id,
             status=para,

@@ -14,6 +14,7 @@ from __future__ import annotations
 import asyncio
 import os
 from collections.abc import AsyncIterator, Iterator
+from datetime import datetime
 from pathlib import Path
 from uuid import uuid4
 
@@ -81,3 +82,13 @@ async def engine(url_banco: str) -> AsyncIterator[AsyncEngine]:
         yield eng
     finally:
         await eng.dispose()
+
+
+class RelogioFixo:
+    """``Clock`` dos testes de integracao (D5): instante controlado pelo teste."""
+
+    def __init__(self, agora: datetime) -> None:
+        self._agora = agora
+
+    def agora(self) -> datetime:
+        return self._agora

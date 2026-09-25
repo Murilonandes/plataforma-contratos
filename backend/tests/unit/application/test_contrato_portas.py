@@ -22,6 +22,7 @@ from uuid import UUID, uuid4
 import pytest
 
 from app.application.ports import (
+    ChaveEmUso,
     ConflitoDeVersao,
     EntradaParcelas,
     EnvioRegistrado,
@@ -51,12 +52,12 @@ def nova_uow() -> NovaUow:
     return lambda: FakeUnitOfWork(banco)
 
 
-def _novo_contrato(pedido: str | None = "PG285") -> NovoContrato:
+def _novo_contrato(pedido: str | None = "PG285", *, idem: str | None = None) -> NovoContrato:
     return NovoContrato(
         id=uuid4(),
         origin="WEB",
         created_by="oid-vendedor",
-        idempotency_key=str(uuid4()),
+        idempotency_key=idem or str(uuid4()),
         pedido_sysfertil=pedido,
         entrada={"SalesOrganization": "BRF1"},
     )
@@ -78,7 +79,7 @@ def _snapshot(contract_id: UUID) -> SnapshotContrato:
 
 
 async def _preparar_job(nova_uow: NovaUow, *, run_after: datetime = T0) -> NovoJob:
-    c = _novo_contrato()
+    c = _novo_contrato(pedido=None)  # varios jobs: pedido nulo nunca colide
     s = _snapshot(c.id)
     job = NovoJob(
         id=uuid4(), contract_id=c.id, snapshot_id=s.id, run_after=run_after, correlation_id="corr-1"
@@ -162,6 +163,72 @@ async def test_numero_sap_gravado_na_transicao(nova_uow: NovaUow) -> None:
             c.id, version_esperada=1, para=ContractStatus.CRIADO, sap_contract_number="0040001234"
         )
     assert reg.sap_contract_number == "0040001234"
+
+
+# ---- Contratos: unique de negocio (ChaveEmUso, §6) ------------------------------------
+
+
+async def test_idempotency_key_repetida_e_chave_em_uso(nova_uow: NovaUow) -> None:
+    async with nova_uow() as uow:
+        await uow.contratos.inserir(_novo_contrato("P1", idem="idem-1"))
+        await uow.commit()
+    async with nova_uow() as uow:
+        with pytest.raises(ChaveEmUso) as exc:
+            await uow.contratos.inserir(_novo_contrato("P2", idem="idem-1"))
+    assert exc.value.campo == "idempotency_key"
+    assert str(exc.value) == "idempotency_key ja em uso"
+
+
+async def test_pedido_repetido_entre_ativos_e_chave_em_uso_e_a_uow_segue_utilizavel(
+    nova_uow: NovaUow,
+) -> None:
+    a = _novo_contrato("PG-DUP")
+    async with nova_uow() as uow:
+        await uow.contratos.inserir(a)
+        await uow.commit()
+    outro = _novo_contrato("PG-OK")
+    async with nova_uow() as uow:
+        with pytest.raises(ChaveEmUso) as exc:
+            await uow.contratos.inserir(_novo_contrato("PG-DUP"))
+        assert exc.value.campo == "pedido_sysfertil"
+        await uow.contratos.inserir(outro)  # a transacao nao ficou abortada
+        await uow.commit()
+    async with nova_uow() as uow:
+        assert await uow.contratos.obter(outro.id) is not None
+
+
+async def test_pedido_liberado_quando_o_dono_sai_de_ativo_e_reativar_colide(
+    nova_uow: NovaUow,
+) -> None:
+    a = _novo_contrato("PG-X")
+    async with nova_uow() as uow:
+        await uow.contratos.inserir(a)
+        await uow.contratos.atualizar_status(
+            a.id, version_esperada=1, para=ContractStatus.ERRO_NEGOCIO
+        )
+        await uow.commit()
+    b = _novo_contrato("PG-X")
+    async with nova_uow() as uow:
+        await uow.contratos.inserir(b)  # a esta em ERRO_NEGOCIO: pedido livre
+        await uow.commit()
+    async with nova_uow() as uow:
+        with pytest.raises(ChaveEmUso) as exc:
+            await uow.contratos.atualizar_status(
+                a.id, version_esperada=2, para=ContractStatus.NA_FILA
+            )
+    assert exc.value.campo == "pedido_sysfertil"
+    async with nova_uow() as uow:  # nada mudou em a
+        reg = await uow.contratos.obter(a.id)
+    assert reg is not None
+    assert (reg.status, reg.version) == (ContractStatus.ERRO_NEGOCIO, 2)
+
+
+@pytest.mark.parametrize("pedido", [None, ""])
+async def test_pedido_vazio_ou_nulo_nunca_colide(nova_uow: NovaUow, pedido: str | None) -> None:
+    async with nova_uow() as uow:
+        await uow.contratos.inserir(_novo_contrato(pedido))
+        await uow.contratos.inserir(_novo_contrato(pedido))
+        await uow.commit()
 
 
 # ---- Snapshot e eventos: imutaveis ---------------------------------------------------------
