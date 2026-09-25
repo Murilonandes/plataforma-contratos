@@ -40,3 +40,6 @@ infra/secrets/
 
 # mutmut
 backend/mutants/
+
+# Smoke real em DEV: respostas cruas do SAP (anonimizar antes de virar fixture)
+backend/.smoke/

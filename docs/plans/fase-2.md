@@ -385,7 +385,13 @@ Mais os tipos de resultado (`RespostaSap`, `MensagemSap`).
 
 **Arquivos:** △ `.github/workflows/ci.yml`, △ `backend/pyproject.toml`
 
-## Tarefa 2.12 — Smoke real em DEV (só com autorização explícita a cada execução)
+## Tarefa 2.12 — Smoke real em DEV (só com autorização explícita a cada execução) — ⏸ SCRIPT PRONTO, NÃO EXECUTADO
+
+> **Feito:** `backend/scripts/smoke_dev.py` (recusa `APP_ENV` ≠ `dev`, guard DEV × PRD do settings,
+> marca `SMOKE-<AAAAMMDDHHMMSS>` em `PedidoSysFertil` e `PurchaseOrderByCustomer`, confirmação
+> digitada `ENVIAR` antes de gravar qualquer coisa, resposta crua em `backend/.smoke/`, fora do git).
+> Partes puras testadas em `tests/unit/test_smoke_dev.py`. **A execução é do dono do projeto**; as
+> fixtures reais e o fechamento das decisões #3, #4, #9 e #13 ficam para depois dela.
 
 - `backend/scripts/smoke_dev.py`:
   - monta o contrato do `payload_exemplo` pelo caminho completo (`submit_contract` →
