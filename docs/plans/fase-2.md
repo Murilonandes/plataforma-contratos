@@ -375,7 +375,12 @@ Mais os tipos de resultado (`RespostaSap`, `MensagemSap`).
 **Arquivos:** △ `backend/app/main.py`, △ `backend/app/api/health.py`,
 ✱ `backend/app/infrastructure/db/heartbeat.py`, △ `backend/tests/unit/test_health.py`
 
-## Tarefa 2.11 — CI
+## Tarefa 2.11 — CI — ✅ FEITA
+
+> **Feito:** `only_mutate` com `classificacao.py` e os três casos de uso (entraram na 2.7/2.8; seleção
+> de testes já tinha `tests/unit/application/`); cobertura segue ≥ 90%. O smoke do worker nas
+> imagens e no compose deixou de esperar o stub: o worker sobe, fica vivo, loga JSON e sai com 0 no
+> SIGTERM. Tornar o job `integration` check obrigatório do branch é configuração do dono no GitHub.
 
 - Job `integration`: testcontainers com o Docker do runner, `pytest -m integration`. É **check
   obrigatório** do branch (D10); a proteção do branch é configurada pelo dono do projeto no GitHub.

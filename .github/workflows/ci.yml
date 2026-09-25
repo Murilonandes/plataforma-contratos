@@ -224,12 +224,24 @@ jobs:
           if docker run --rm -e APP_ENV=dev -e DATABASE_URL="$DB_CI" "$BACKEND_IMG" app.entrypoints.worker; then
             falha "worker subiu sem config SAP"
           fi
-          # worker com banco + SAP: stub carrega o WorkerSettings e sai com 0
-          docker run --rm \
+          # worker com banco + SAP: o laco sobe e fica vivo (banco inalcancavel so gera
+          # log de erro JSON); SIGTERM (docker stop) = parada limpa com saida 0
+          docker run -d --name worker \
             -e APP_ENV=dev -e DATABASE_URL="$DB_CI" \
             -e SAP_BASE_URL=https://s4-dev.example/x/ -e SAP_CLIENT=300 \
             -e SAP_PRD_HOSTS=s4-prd.example -e SAP_USER=ci -e SAP_PASS=ci \
             "$BACKEND_IMG" app.entrypoints.worker
+          sleep 5
+          test "$(docker inspect --format '{{.State.Running}}' worker)" = "true" || falha "worker morreu"
+          docker stop -t 30 worker
+          test "$(docker inspect --format '{{.State.ExitCode}}' worker)" = "0" || falha "worker nao parou limpo no SIGTERM"
+          docker logs worker > "$RUNNER_TEMP/worker.log" 2>&1
+          python3 -c "import json,sys; [json.loads(l) for l in open(sys.argv[1]) if l.strip()]" "$RUNNER_TEMP/worker.log"
+          wlogs=$(cat "$RUNNER_TEMP/worker.log")
+          [[ "$wlogs" == *'"event": "worker_iniciado"'* ]] || falha "worker_iniciado ausente"
+          [[ "$wlogs" == *'"event": "worker_parado"'* ]] || falha "worker_parado ausente"
+          [[ "$wlogs" != *'ci:ci@'* ]] || falha "DATABASE_URL vazou no log do worker"
+          docker rm -f worker
 
       - name: smoke frontend (nginx, SPA, headers)
         run: |
@@ -277,7 +289,13 @@ jobs:
           fi
           curl -fsS http://127.0.0.1:8000/health/live
           curl -fsS http://127.0.0.1:5173/healthz
-          dc run --rm --no-deps worker
+          # worker contra o db do compose: sobe, fica vivo e para limpo no SIGTERM
+          dc up -d --no-build --no-deps worker
+          sleep 5
+          cid=$(dc ps -q worker)
+          test "$(docker inspect --format '{{.State.Running}}' "$cid")" = "true" || { dc logs worker; echo "FALHOU: worker morreu"; exit 1; }
+          dc stop -t 30 worker
+          test "$(docker inspect --format '{{.State.ExitCode}}' "$cid")" = "0" || { dc logs worker; echo "FALHOU: worker nao parou limpo"; exit 1; }
           dc down -v
 
       - name: trivy backend (bloqueia HIGH e CRITICAL com fix)
