@@ -26,11 +26,9 @@ Tudo auditado em `contract_events` e `contract_submissions`, e comprovado num sm
 
 ## Bloqueios (do lado do dono do projeto)
 
-1. **Docker local**, para os testes de integração com Postgres (testcontainers). O CI já tem Docker;
-   sem Docker local, esses testes só rodam no CI.
-2. **`docs/sap/metadata.xml` corrigido**, com o diff esperado de só `&` → `&amp;`. Com ele entra a
-   Tarefa 2.0: commit, remoção do workaround de escape em `_referencias_sap.py` e teste de XML bem
-   formado.
+1. **Validação de banco só no CI** (decisão do dono, 2026-09-25): nada de integração local; o job
+   `integration` (PostgreSQL 16) é a validação.
+2. ~~**`docs/sap/metadata.xml` corrigido**~~ — resolvido na Tarefa 2.0 (2026-09-25).
 3. **Credenciais do usuário técnico SAP DEV** num Docker secret, e autorização explícita **a cada
    execução** do smoke, que cria contrato de verdade no SAP DEV.
 
@@ -62,7 +60,9 @@ TDD em domínio e aplicação. Commits pequenos e push na `develop` a cada taref
 
 ---
 
-## Tarefa 2.0 — `metadata.xml` corrigido (bloqueada pelo item 2)
+## Tarefa 2.0 — `metadata.xml` corrigido — ✅ FEITA
+
+> Corrigido na fonte pelo dono do projeto em 2026-09-25 (`&` → `&amp;` nas 11 `DocumentationRef`).
 
 - Conferir `git diff docs/sap/metadata.xml` (esperado: só `&` → `&amp;`) e fazer o commit.
 - Remover `_AMP_SOLTO` e o escape em `tests/unit/domain/_referencias_sap.py`.
@@ -128,7 +128,11 @@ Mais os tipos de resultado (`RespostaSap`, `MensagemSap`).
 ✱ `backend/app/observability/metricas.py` (adapter de log da porta `Metrics`, D15),
 ✱ `backend/tests/unit/test_metricas.py`
 
-## Tarefa 2.3 — Modelo relacional + migração Alembic
+## Tarefa 2.3 — Modelo relacional + migração Alembic — ✅ FEITA
+
+> Schema `contratos` (confirmado). Job `integration` verde (PG 16): ciclo upgrade → downgrade →
+> upgrade + `alembic check`, unique parcial, 2 workers com SKIP LOCKED, fencing por rowcount e
+> imutabilidade por trigger. A bateria de contrato das portas contra o Postgres é critério da **2.4**.
 
 - **Tabelas** (§6): `contracts`, `contract_snapshots` (D6′, append-only), `contract_events`,
   `contract_submissions` (com `snapshot_id`, `response_body TEXT` e `response_json JSONB`, D12) e
