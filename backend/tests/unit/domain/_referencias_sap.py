@@ -1,8 +1,7 @@
 """Leitura das referencias SAP de ``docs/sap`` para os testes do dominio.
 
-- ``metadata()``: le ``metadata.xml``. O arquivo do repo tem ``&`` sem escape em
-  anotacoes ``DocumentationRef`` (nao e XML bem-formado); escapamos so os ``&``
-  soltos antes de parsear, sem alterar a fonte da verdade.
+- ``metadata()``: le ``metadata.xml`` direto com ``ET.parse`` (o arquivo e XML
+  bem-formado desde a Tarefa 2.0; ``test_metadata_xml.py`` garante).
 - ``payload_exemplo_como_entrada()``: le ``payload_exemplo.json`` convertendo
   para os tipos do dominio (``Decimal``, ``date``), como a API fara na Fase 3,
   e tira ``StatusBlock`` (o exemplo e a SAIDA do mapper; a entrada do dominio
@@ -12,7 +11,6 @@
 from __future__ import annotations
 
 import json
-import re
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
 from datetime import date
@@ -22,7 +20,6 @@ from pathlib import Path
 from typing import Any
 
 _EDM = "{http://docs.oasis-open.org/odata/ns/edm}"
-_AMP_SOLTO = re.compile(r"&(?!(?:amp|lt|gt|quot|apos|#\d+|#x[0-9a-fA-F]+);)")
 
 _DECIMAIS = {"RequestedQuantity", "ConditionRateValue", "Porcentagem", "Valor"}
 _DATAS = {
@@ -32,6 +29,10 @@ _DATAS = {
     "ScheduleDate2",
     "Data",
 }
+
+
+def caminho_metadata() -> Path:
+    return _docs_sap() / "metadata.xml"
 
 
 def _docs_sap() -> Path:
@@ -68,8 +69,7 @@ class PropriedadeMeta:
 @cache
 def metadata() -> dict[str, dict[str, PropriedadeMeta]]:
     """EntityType -> propriedade -> PropriedadeMeta."""
-    texto = (_docs_sap() / "metadata.xml").read_text(encoding="utf-8")
-    raiz = ET.fromstring(_AMP_SOLTO.sub("&amp;", texto))  # noqa: S314 — arquivo do proprio repo
+    raiz = ET.parse(caminho_metadata()).getroot()  # noqa: S314 — arquivo do proprio repo
 
     anotacoes: dict[str, set[str]] = {}
     for grupo in raiz.iter(f"{_EDM}Annotations"):
@@ -101,8 +101,7 @@ def metadata() -> dict[str, dict[str, PropriedadeMeta]]:
 @cache
 def navegacoes() -> dict[str, tuple[str, ...]]:
     """EntityType -> NavigationProperty na ordem do metadata."""
-    texto = (_docs_sap() / "metadata.xml").read_text(encoding="utf-8")
-    raiz = ET.fromstring(_AMP_SOLTO.sub("&amp;", texto))  # noqa: S314 — arquivo do proprio repo
+    raiz = ET.parse(caminho_metadata()).getroot()  # noqa: S314 — arquivo do proprio repo
     return {
         et.get("Name", ""): tuple(
             n.get("Name", "") for n in et.findall(f"{_EDM}NavigationProperty")

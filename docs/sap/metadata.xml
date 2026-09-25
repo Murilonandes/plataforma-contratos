@@ -246,7 +246,7 @@
 <Annotation Term="SAP__common.Label" String="Documento SD"/>
 <Annotation Term="SAP__common.Heading" String="Documento"/>
 <Annotation Term="SAP__common.QuickInfo" String="Número do documento de vendas e distribuição"/>
-<Annotation Term="SAP__common.DocumentationRef" String="urn:sap-com:documentation:key?=type=DE&id=VBELN"/>
+<Annotation Term="SAP__common.DocumentationRef" String="urn:sap-com:documentation:key?=type=DE&amp;id=VBELN"/>
 </Annotations>
 <Annotations Target="SAP__self.TextosContratoType/Language">
 <Annotation Term="SAP__common.FieldControl" EnumMember="SAP__common.FieldControlType/Mandatory"/>
@@ -322,7 +322,7 @@
 <Annotation Term="SAP__common.Label" String="Documento SD"/>
 <Annotation Term="SAP__common.Heading" String="Documento"/>
 <Annotation Term="SAP__common.QuickInfo" String="Número do documento de vendas e distribuição"/>
-<Annotation Term="SAP__common.DocumentationRef" String="urn:sap-com:documentation:key?=type=DE&id=VBELN"/>
+<Annotation Term="SAP__common.DocumentationRef" String="urn:sap-com:documentation:key?=type=DE&amp;id=VBELN"/>
 </Annotations>
 <Annotations Target="SAP__self.PrecosCabecalhoType/ConditionUUID">
 <Annotation Term="SAP__core.Computed"/>
@@ -378,7 +378,7 @@
 <Annotation Term="SAP__common.Label" String="Documento SD"/>
 <Annotation Term="SAP__common.Heading" String="Documento"/>
 <Annotation Term="SAP__common.QuickInfo" String="Número do documento de vendas e distribuição"/>
-<Annotation Term="SAP__common.DocumentationRef" String="urn:sap-com:documentation:key?=type=DE&id=VBELN"/>
+<Annotation Term="SAP__common.DocumentationRef" String="urn:sap-com:documentation:key?=type=DE&amp;id=VBELN"/>
 </Annotations>
 <Annotations Target="SAP__self.CriaContratoType/SalesContractType">
 <Annotation Term="SAP__common.FieldControl" EnumMember="SAP__common.FieldControlType/Mandatory"/>
@@ -596,7 +596,7 @@
 <Annotation Term="SAP__common.IsUpperCase"/>
 <Annotation Term="SAP__common.Heading" String="Doc.venda"/>
 <Annotation Term="SAP__common.QuickInfo" String="Documento de vendas"/>
-<Annotation Term="SAP__common.DocumentationRef" String="urn:sap-com:documentation:key?=type=DE&id=VBELN_VA"/>
+<Annotation Term="SAP__common.DocumentationRef" String="urn:sap-com:documentation:key?=type=DE&amp;id=VBELN_VA"/>
 </Annotations>
 <Annotations Target="SAP__self.AlteraStatusContratoType/StatusBlock">
 <Annotation Term="SAP__common.Label" String="Status do contrato"/>
@@ -643,7 +643,7 @@
 <Annotation Term="SAP__common.Label" String="Documento SD"/>
 <Annotation Term="SAP__common.Heading" String="Documento"/>
 <Annotation Term="SAP__common.QuickInfo" String="Número do documento de vendas e distribuição"/>
-<Annotation Term="SAP__common.DocumentationRef" String="urn:sap-com:documentation:key?=type=DE&id=VBELN"/>
+<Annotation Term="SAP__common.DocumentationRef" String="urn:sap-com:documentation:key?=type=DE&amp;id=VBELN"/>
 </Annotations>
 <Annotations Target="SAP__self.ItensContratoType/SalesContractItem">
 <Annotation Term="SAP__core.Computed"/>
@@ -751,7 +751,7 @@
 <Annotation Term="SAP__common.Label" String="Documento SD"/>
 <Annotation Term="SAP__common.Heading" String="Documento"/>
 <Annotation Term="SAP__common.QuickInfo" String="Número do documento de vendas e distribuição"/>
-<Annotation Term="SAP__common.DocumentationRef" String="urn:sap-com:documentation:key?=type=DE&id=VBELN"/>
+<Annotation Term="SAP__common.DocumentationRef" String="urn:sap-com:documentation:key?=type=DE&amp;id=VBELN"/>
 </Annotations>
 <Annotations Target="SAP__self.ParceirosContratoType/PartnerFunction">
 <Annotation Term="SAP__common.FieldControl" EnumMember="SAP__common.FieldControlType/Mandatory"/>
@@ -802,7 +802,7 @@
 <Annotation Term="SAP__common.Label" String="Documento SD"/>
 <Annotation Term="SAP__common.Heading" String="Documento"/>
 <Annotation Term="SAP__common.QuickInfo" String="Número do documento de vendas e distribuição"/>
-<Annotation Term="SAP__common.DocumentationRef" String="urn:sap-com:documentation:key?=type=DE&id=VBELN"/>
+<Annotation Term="SAP__common.DocumentationRef" String="urn:sap-com:documentation:key?=type=DE&amp;id=VBELN"/>
 </Annotations>
 <Annotations Target="SAP__self.PrecosItemType/SalesContractItem">
 <Annotation Term="SAP__core.Computed"/>
@@ -863,7 +863,7 @@
 <Annotation Term="SAP__common.Label" String="Documento SD"/>
 <Annotation Term="SAP__common.Heading" String="Documento"/>
 <Annotation Term="SAP__common.QuickInfo" String="Número do documento de vendas e distribuição"/>
-<Annotation Term="SAP__common.DocumentationRef" String="urn:sap-com:documentation:key?=type=DE&id=VBELN"/>
+<Annotation Term="SAP__common.DocumentationRef" String="urn:sap-com:documentation:key?=type=DE&amp;id=VBELN"/>
 </Annotations>
 <Annotations Target="SAP__self.ParcelasContratoType/Parcela">
 <Annotation Term="SAP__common.FieldControl" EnumMember="SAP__common.FieldControlType/Mandatory"/>
@@ -873,14 +873,14 @@
 <Annotation Term="SAP__measures.ISOCurrency" Path="TransactionCurrency"/>
 <Annotation Term="SAP__common.Label" String="Valor(8,2)"/>
 <Annotation Term="SAP__common.QuickInfo" String="Campo de valores - 8(15) caracteres com 2 casas decimais"/>
-<Annotation Term="SAP__common.DocumentationRef" String="urn:sap-com:documentation:key?=type=DE&id=WERTV8"/>
+<Annotation Term="SAP__common.DocumentationRef" String="urn:sap-com:documentation:key?=type=DE&amp;id=WERTV8"/>
 </Annotations>
 <Annotations Target="SAP__self.ParcelasContratoType/FormPag">
 <Annotation Term="SAP__common.IsUpperCase"/>
 <Annotation Term="SAP__common.Label" String="FrmPgto"/>
 <Annotation Term="SAP__common.Heading" String="MP"/>
 <Annotation Term="SAP__common.QuickInfo" String="Forma de pagamento"/>
-<Annotation Term="SAP__common.DocumentationRef" String="urn:sap-com:documentation:key?=type=DE&id=SCHZW_BSEG"/>
+<Annotation Term="SAP__common.DocumentationRef" String="urn:sap-com:documentation:key?=type=DE&amp;id=SCHZW_BSEG"/>
 </Annotations>
 <Annotations Target="SAP__self.ParcelasContratoType/TransactionCurrency">
 <Annotation Term="SAP__common.IsCurrency"/>
@@ -949,7 +949,7 @@
 <Annotation Term="SAP__common.Label" String="Dt.base prazo pgto."/>
 <Annotation Term="SAP__common.Heading" String="Data base"/>
 <Annotation Term="SAP__common.QuickInfo" String="Data base para cálculo do vencimento"/>
-<Annotation Term="SAP__common.DocumentationRef" String="urn:sap-com:documentation:key?=type=DE&id=DZFBDT"/>
+<Annotation Term="SAP__common.DocumentationRef" String="urn:sap-com:documentation:key?=type=DE&amp;id=DZFBDT"/>
 </Annotations>
 </Schema>
 </edmx:DataServices>
