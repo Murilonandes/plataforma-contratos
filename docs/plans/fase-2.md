@@ -216,7 +216,13 @@ Mais os tipos de resultado (`RespostaSap`, `MensagemSap`).
 
 **Arquivos:** ✱ `backend/app/infrastructure/sap/client.py`, ✱ `backend/tests/unit/infrastructure/sap/test_client.py`
 
-## Tarefa 2.6 — Parser de erros e de sucesso do SAP
+## Tarefa 2.6 — Parser de erros e de sucesso do SAP — ✅ FEITA
+
+> **Feito:** `ler_erro` (→ `ErroSap` com `tem_details` para a linha 5 da §4, `None` se não for erro
+> OData), `ler_sucesso` (`SalesContract` cru; normalização/recusa fica na `transition`, D9; 201 fora
+> do formato → `RespostaInvalida`), `ler_avisos` (`sap-messages`, tolerante: nunca derruba um 201).
+> `target` → `path` só para campo do cabeçalho; navegação com chave do SAP fica crua
+> (`TODO(decisão #3)`: o índice do nosso payload não sai da chave sem inventar regra de numeração).
 
 - **Erro:** `error.code`, `error.message` e `error.details[]` (`code`, `message`, `target`) viram
   uma lista de `MensagemSap`.
