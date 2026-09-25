@@ -58,8 +58,6 @@ E = TransitionEvent
 
 _log = structlog.get_logger("app.worker")
 
-_US = timedelta(microseconds=1)
-
 
 class SnapshotAusente(LookupError):
     """O job aponta para um snapshot que nao existe (a FK impede; defesa)."""
@@ -94,21 +92,19 @@ class ConfigWorker:
     worker_id: str
     lock_timeout: timedelta
     max_tentativas: int
-    backoff_base: timedelta = timedelta(seconds=30)
-    backoff_teto: timedelta = timedelta(minutes=30)
+    backoff_base_s: int = 30
+    backoff_teto_s: int = 1800
     jitter: float = 0.2
 
 
 def atraso_retry(tentativa: int, config: ConfigWorker, sorteio: float) -> timedelta:
     """D3: ``base x 2^(tentativa-1)``, teto, jitter de +-``jitter`` (``sorteio`` em [0, 1)).
 
-    Em microssegundos inteiros: ``<<`` com ``int`` nao estoura para tentativa alta.
+    Segundos inteiros: ``<<`` com ``int`` nao estoura para tentativa alta.
     """
-    base_us = config.backoff_base // _US
-    teto_us = config.backoff_teto // _US
-    atraso = timedelta(microseconds=min(base_us << (tentativa - 1), teto_us))
+    segundos = min(config.backoff_base_s << (tentativa - 1), config.backoff_teto_s)
     fator: float = 1 + config.jitter * (2 * sorteio - 1)
-    return atraso * fator
+    return timedelta(seconds=segundos) * fator
 
 
 @dataclass(frozen=True, slots=True)
@@ -116,6 +112,12 @@ class Processado:
     job: JobPego
     evento: TransitionEvent | None  # None: job descartado ou lock perdido (nada gravado)
     para: ContractStatus | None
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.job, JobPego):
+            raise TypeError("Processado.job precisa ser JobPego")
+        if (self.evento is None) != (self.para is None):
+            raise ValueError("Processado: evento e para vem juntos")
 
 
 def nome_do_alerta(t: Transicao) -> str | None:
@@ -302,11 +304,9 @@ class ProcessadorOutbox:
         job: JobPego,
         registro: ContratoRegistro,
         t: Transicao,
-        *,
-        caos: bool,
+        gancho: Gancho,
     ) -> None:
         agora = self.relogio.agora()
-        gancho = self.gancho if caos else _sem_gancho
         await uow.contratos.atualizar_status(
             job.contract_id,
             version_esperada=registro.version,
@@ -349,7 +349,7 @@ class ProcessadorOutbox:
             if not await uow.outbox.confirmar_lock(job.id, lock_token=job.lock_token):
                 _log.warning("lock_perdido", fase="sem_envio", job_id=str(job.id))
                 return Processado(job, None, None)
-            await self._aplicar(uow, job, registro, t, caos=False)
+            await self._aplicar(uow, job, registro, t, _sem_gancho)
         alertar(self.metricas, t, job)
         return Processado(job, t.evento, t.para)
 
@@ -396,7 +396,7 @@ class ProcessadorOutbox:
                         "tentativa": job.tentativa,
                     },
                 )
-            await self._aplicar(uow, job, registro, t, caos=True)
+            await self._aplicar(uow, job, registro, t, self.gancho)
         alertar(self.metricas, t, job)
         return Processado(job, t.evento, t.para)
 
@@ -419,7 +419,7 @@ class ProcessadorOutbox:
             async with self.nova_uow() as uow:
                 if not await uow.outbox.confirmar_lock(job.id, lock_token=job.lock_token):
                     return Processado(job, None, None)
-                await self._aplicar(uow, job, registro, t, caos=False)
+                await self._aplicar(uow, job, registro, t, _sem_gancho)
         except Exception as exc2:
             _log.error(
                 "fallback_incerto_falhou",

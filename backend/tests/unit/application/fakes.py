@@ -353,15 +353,18 @@ class FakeGateway:
     post: list[DesfechoPost | Exception] = field(default_factory=list)
     corpos: list[bytes] = field(default_factory=list)
     preparos: int = 0
+    chamadas: list[tuple[str, str, UUID]] = field(default_factory=list)
 
     async def preparar(self, *, correlation_id: str, contract_id: UUID) -> DesfechoCsrf:
         self.preparos += 1
+        self.chamadas.append(("preparar", correlation_id, contract_id))
         return self.csrf.pop(0) if self.csrf else DesfechoCsrf.ok()
 
     async def criar_contrato(
         self, corpo: bytes, *, correlation_id: str, contract_id: UUID
     ) -> DesfechoPost:
         self.corpos.append(corpo)
+        self.chamadas.append(("criar", correlation_id, contract_id))
         item = self.post.pop(0)
         if isinstance(item, Exception):
             raise item

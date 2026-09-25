@@ -12,7 +12,7 @@ from uuid import UUID
 
 import pytest
 
-from app.application.ports import DesfechoCsrf, MensagemSap, NovoJob
+from app.application.ports import DesfechoCsrf, JobPego, MensagemSap, NovoJob
 from app.application.process_outbox_job import ConfigWorker, PontoCaos, atraso_retry, nome_do_alerta
 from app.application.snapshot import Algoritmo
 from app.domain.enums import ActorKind, ContractStatus, TransitionEvent
@@ -81,6 +81,9 @@ async def test_201_ponta_a_ponta() -> None:
     assert c.gateway.corpos == [esperado]
     (envio,) = _envios(c)
     assert (envio.job_id, envio.snapshot_id, envio.tentativa) == (job_id, snapshot_id, 1)
+    assert envio.contract_id == cid
+    assert c.gateway.chamadas == [("preparar", "corr-1", cid), ("criar", "corr-1", cid)]
+    assert r.job.id == job_id
     assert envio.request_body == esperado
     assert envio.request_sha256 == hashlib.sha256(esperado).hexdigest()
     assert envio.request_sent_at == T0
@@ -335,11 +338,14 @@ async def test_transition_que_recusa_o_201_vira_falha_apos_resposta() -> None:
 
 async def test_gateway_que_levanta_no_post_vai_para_incerto() -> None:
     c = Cenario()
-    await _na_fila(c)
+    cid, _, _ = await _na_fila(c)
     c.gateway.post = [RuntimeError("porta quebrada")]
     r = await c.processador().processar_proximo()
     assert r is not None
     assert (r.evento, r.para) == (E.FALHA_NAO_CLASSIFICADA_APOS_ENVIO, S.INCERTO)
+    async with c.uow() as uow:
+        ultimo = (await uow.eventos.listar(cid))[-1].transicao
+    assert ultimo.detalhe == {"fase": "post", "error_class": "RuntimeError", "tentativa": 1}
     resposta = c.banco.estado.respostas[_envios(c)[0].id]
     assert (resposta.response_status, resposta.response_body) == (None, None)
     assert (resposta.error_class, resposta.duracao_ms) == ("RuntimeError", 0)
@@ -494,3 +500,24 @@ async def test_lock_perdido_dentro_da_transacao_termina_sem_gravar(
     assert r is not None
     assert (r.evento, r.para) == (None, None)  # resultado e fallback nao gravaram
     assert await c.status(cid) is S.ENVIANDO  # o recover decide quando o lock expirar
+
+
+def test_processado_valida_job_e_par_evento_para() -> None:
+    from app.application.process_outbox_job import Processado
+
+    with pytest.raises(TypeError) as t:
+        Processado(None, None, None)  # type: ignore[arg-type]
+    assert str(t.value) == "Processado.job precisa ser JobPego"
+    job = JobPego(
+        id=UUID(int=1),
+        contract_id=UUID(int=2),
+        snapshot_id=UUID(int=3),
+        tentativa=1,
+        lock_token=UUID(int=4),
+        locked_until=T0,
+        correlation_id="c",
+    )
+    for evento, para in ((E.SAP_201, None), (None, S.CRIADO)):
+        with pytest.raises(ValueError) as v:  # noqa: PT011 — mensagem conferida abaixo
+            Processado(job, evento, para)
+        assert str(v.value) == "Processado: evento e para vem juntos"

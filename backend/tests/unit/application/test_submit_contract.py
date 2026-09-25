@@ -2,10 +2,15 @@
 
 from __future__ import annotations
 
+import dataclasses
+from collections.abc import Sequence
+from datetime import date
+from decimal import Decimal
+
 import pytest
 
 from app.application.ports import ChaveEmUso
-from app.application.snapshot import montar_contrato
+from app.application.snapshot import Algoritmo, montar_contrato
 from app.application.submit_contract import (
     ContratoNaoEncontrado,
     PedidoSubmissao,
@@ -13,7 +18,7 @@ from app.application.submit_contract import (
 )
 from app.domain.enums import ActorKind, ContractStatus, TransitionEvent
 from app.domain.errors import DomainValidationError, InvalidTransitionError
-from app.domain.installments import ALGORITMO_PARCELAS
+from app.domain.installments import ALGORITMO_PARCELAS, ParcelaCalculada, calcular_parcelas
 from app.domain.states import Ator
 from tests.unit.application._cenario import (
     PARCELAS,
@@ -114,6 +119,7 @@ async def test_contrato_inexistente() -> None:
     with pytest.raises(ContratoNaoEncontrado) as exc:
         await c.submeter(outro)
     assert str(exc.value) == f"contrato {outro} nao encontrado"
+    assert exc.value.contract_id == outro
 
 
 async def test_ator_que_nao_e_usuario_e_recusado_pela_transition() -> None:
@@ -145,3 +151,54 @@ async def test_reativacao_que_colide_no_pedido_propaga_chave_em_uso_sem_gravar()
     assert await c.status(antigo) is S.ERRO_NEGOCIO
     assert c.banco.estado.snapshots == {}
     assert c.banco.estado.jobs == {}
+
+
+async def test_justificativa_do_vendedor_vai_para_o_evento() -> None:
+    c = Cenario()
+    cid = await c.rascunho()
+    r = await submeter_contrato(
+        PedidoSubmissao(
+            contract_id=cid,
+            entrada=entrada_sem_parcelas(),
+            parcelas=PARCELAS,
+            ator=VENDEDOR,
+            correlation_id="c",
+            justificativa="  cliente pediu urgencia  ",
+        ),
+        nova_uow=c.uow,
+        relogio=c.relogio,
+    )
+    assert r.transicao.justificativa == "cliente pediu urgencia"
+
+
+def _invertido(
+    total: Decimal, pesos: Sequence[int], datas: Sequence[date]
+) -> tuple[ParcelaCalculada, ...]:
+    ps = calcular_parcelas(total, pesos, datas)
+    return tuple(
+        dataclasses.replace(p, valor=q.valor) for p, q in zip(ps, reversed(ps), strict=True)
+    )
+
+
+async def test_algoritmo_injetado_calcula_e_carimba_o_snapshot() -> None:
+    c = Cenario()
+    cid = await c.rascunho()
+    r = await submeter_contrato(
+        PedidoSubmissao(
+            contract_id=cid,
+            entrada=entrada_sem_parcelas(),
+            parcelas=PARCELAS,
+            ator=VENDEDOR,
+            correlation_id="c",
+        ),
+        nova_uow=c.uow,
+        relogio=c.relogio,
+        algoritmo=Algoritmo("teste/1", _invertido),
+    )
+    snapshot = c.banco.estado.snapshots[r.snapshot_id]
+    assert snapshot.algoritmo_parcelas == "teste/1"
+    assert [p.valor for p in snapshot.contrato.installments] == [
+        Decimal("7766.51"),
+        Decimal("7766.52"),
+        Decimal("7766.52"),
+    ]

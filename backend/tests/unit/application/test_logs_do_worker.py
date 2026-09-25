@@ -218,7 +218,9 @@ async def test_lock_perdido_no_resultado(logs: Logs) -> None:
             c.relogio.avancar(_DEPOIS)
             await c.recuperar()
 
-    await c.processador(gancho=gancho).processar_proximo()
+    r = await c.processador(gancho=gancho).processar_proximo()
+    assert r is not None
+    assert r.job.id == job_id
     assert _de(logs, "lock_perdido") == [
         {
             "event": "lock_perdido",
@@ -227,6 +229,7 @@ async def test_lock_perdido_no_resultado(logs: Logs) -> None:
             "job_id": str(job_id),
         }
     ]
+    assert [x["event"] for x in logs if x["log_level"] == "error"] == []
 
 
 async def test_falha_depois_do_marcador_e_fallback(logs: Logs) -> None:
@@ -276,6 +279,7 @@ async def test_fallback_com_lock_perdido_nao_grava(logs: Logs) -> None:
     assert r.evento is None
     assert await c.eventos(cid) == [E.SUBMETER, E.WORKER_PEGOU, E.LOCK_EXPIRADO_COM_ENVIO]
     assert [n for n, _ in c.metricas.chamadas] == ["contrato_incerto"]
+    assert _de(logs, "fallback_incerto_falhou") == []
 
 
 # ---- recover -----------------------------------------------------------------------------------
