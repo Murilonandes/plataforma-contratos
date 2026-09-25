@@ -24,6 +24,8 @@ from app.application.ports import (
     ChaveEmUso,
     ConflitoDeVersao,
     ContratoRegistro,
+    DesfechoCsrf,
+    DesfechoPost,
     EnvioRegistrado,
     EventoRegistrado,
     JobPego,
@@ -339,9 +341,37 @@ class FakeMetrics:
         self.chamadas.append((evento, labels))
 
 
+@dataclass
+class FakeGateway:
+    """``SapContractGateway`` roteirizado: desfechos consumidos em ordem.
+
+    ``csrf`` vazio = token ok. ``post`` pode ter uma excecao (caos: a porta promete
+    nao levantar, o caso de uso nao confia). ``corpos`` guarda os bytes enviados.
+    """
+
+    csrf: list[DesfechoCsrf] = field(default_factory=list)
+    post: list[DesfechoPost | Exception] = field(default_factory=list)
+    corpos: list[bytes] = field(default_factory=list)
+    preparos: int = 0
+
+    async def preparar(self, *, correlation_id: str, contract_id: UUID) -> DesfechoCsrf:
+        self.preparos += 1
+        return self.csrf.pop(0) if self.csrf else DesfechoCsrf.ok()
+
+    async def criar_contrato(
+        self, corpo: bytes, *, correlation_id: str, contract_id: UUID
+    ) -> DesfechoPost:
+        self.corpos.append(corpo)
+        item = self.post.pop(0)
+        if isinstance(item, Exception):
+            raise item
+        return item
+
+
 def _conformidade(banco: BancoEmMemoria, inicio: datetime) -> None:
     """So para o mypy: os fakes cumprem as portas com as mesmas assinaturas."""
     uow: ports.UnitOfWork = FakeUnitOfWork(banco)
     relogio: ports.Clock = FakeClock(inicio)
     metricas: ports.Metrics = FakeMetrics()
-    del uow, relogio, metricas
+    gateway: ports.SapContractGateway = FakeGateway()
+    del uow, relogio, metricas, gateway

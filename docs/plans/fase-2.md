@@ -281,7 +281,16 @@ Mais os tipos de resultado (`RespostaSap`, `MensagemSap`).
 **Arquivos:** ✱ `backend/app/infrastructure/sap/classificacao.py`, ✱ `backend/tests/unit/infrastructure/sap/test_classificacao.py`,
 △ `backend/tests/unit/domain/_referencias_arquitetura.py` (parser das tabelas de classificação)
 
-## Tarefa 2.8 — Casos de uso (TDD, com fakes)
+## Tarefa 2.8 — Casos de uso (TDD, com fakes) — ✅ FEITA
+
+> **Feito:** `submeter_contrato`, `ProcessadorOutbox.processar_proximo` e `recuperar_lock_expirado`,
+> mais `snapshot.py` (`montar_contrato`, `conferir`, `ALGORITMO_ATUAL`; `ALGORITMO_PARCELAS =
+> "maior-resto/1"` no `installments.py`). O corpo do POST entra injetado (`corpo_de`), porque a
+> aplicação não importa o mapper (infra). Exceção entre o marcador e o commit do resultado →
+> `FALHA_NAO_CLASSIFICADA_APOS_ENVIO` numa transação nova (fallback); se até ele falhar, o recover
+> aplica `LOCK_EXPIRADO_COM_ENVIO`. Métrica com label `transicao` (o 1º parâmetro da porta já se
+> chama `evento`). `LIBERAR_REENVIO` é da Fase 4: o teste byte a byte monta o job novo à mão, com o
+> mesmo `snapshot_id`. Os três casos de uso entraram no `only_mutate`.
 
 - **`submit_contract` (D1, D6′):**
   - valida pelo domínio e calcula as parcelas;

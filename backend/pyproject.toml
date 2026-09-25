@@ -163,6 +163,9 @@ only_mutate = [
     "app/infrastructure/sap/mapper.py",  # StatusBlock "06" e formatacao decimal
     "app/application/ports.py",  # eventos possiveis por fase no gateway
     "app/infrastructure/sap/classificacao.py",  # "o POST pode ter saido?" (D8)
+    "app/application/submit_contract.py",
+    "app/application/process_outbox_job.py",  # nunca reenviar o que pode ter chegado
+    "app/application/recover_expired_locks.py",
 ]
 pytest_add_cli_args_test_selection = [
     "tests/unit/domain/",

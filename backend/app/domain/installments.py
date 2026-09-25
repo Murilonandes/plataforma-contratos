@@ -42,7 +42,16 @@ from app.domain.errors import ErrorCode, ErrorCollector, indice
 from app.domain.money import CONTEXTO_DECIMAL
 from app.domain.rules import MAX_PARCELAS
 
-__all__ = ["MAX_PARCELAS", "PESO_MAX", "ParcelaCalculada", "calcular_parcelas"]
+__all__ = [
+    "ALGORITMO_PARCELAS",
+    "MAX_PARCELAS",
+    "PESO_MAX",
+    "ParcelaCalculada",
+    "calcular_parcelas",
+]
+
+# Versao do calculo gravada no snapshot (D6'). Mudou o resultado para alguma entrada? Nova versao.
+ALGORITMO_PARCELAS: Final = "maior-resto/1"
 
 PESO_MAX: Final = 10_000
 
