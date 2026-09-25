@@ -242,19 +242,26 @@ class ResultadoEnvio:
 
 @dataclass(frozen=True, slots=True)
 class DesfechoCsrf:
-    """Resultado do fetch do token. ``evento`` ``None`` = token ok."""
+    """Resultado do fetch do token. ``evento`` ``None`` = token ok.
+
+    ``token_novo``: o token veio de um fetch agora (o SAP respondeu); ``False`` com
+    token do cache. So o fetch real alimenta o heartbeat do ``/health/sap``.
+    """
 
     evento: TransitionEvent | None
     detalhe: Mapping[str, str | int] = field(default_factory=dict)
+    token_novo: bool = False
 
     def __post_init__(self) -> None:
         if self.evento is not None and self.evento not in EVENTOS_CSRF:
             raise ValueError(f"evento {self.evento.value} nao e possivel no CSRF")
+        if self.evento is not None and self.token_novo:
+            raise ValueError("token_novo so com CSRF ok")
         object.__setattr__(self, "detalhe", _congelar(self.detalhe))
 
     @classmethod
-    def ok(cls) -> DesfechoCsrf:
-        return cls(evento=None)
+    def ok(cls, *, token_novo: bool = False) -> DesfechoCsrf:
+        return cls(evento=None, token_novo=token_novo)
 
 
 @dataclass(frozen=True, slots=True)

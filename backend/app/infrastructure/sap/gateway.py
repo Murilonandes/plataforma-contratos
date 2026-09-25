@@ -49,7 +49,7 @@ class GatewaySap:
             c = classificar_csrf(exc, token_obtido=False)
         else:
             c = classificar_csrf(resposta, token_obtido=self._cliente.token_em_cache is not None)
-        return DesfechoCsrf.ok() if c is None else DesfechoCsrf(c.evento, c.detalhe)
+        return DesfechoCsrf.ok(token_novo=True) if c is None else DesfechoCsrf(c.evento, c.detalhe)
 
     async def criar_contrato(
         self, corpo: bytes, *, correlation_id: str, contract_id: UUID

@@ -16,7 +16,10 @@ Guardas:
 - ``PedidoSysFertil`` e ``PurchaseOrderByCustomer`` unicos por execucao, com
   prefixo ``SMOKE-<timestamp>``;
 - confirmacao DIGITADA antes de gravar qualquer coisa (recusou: nada e gravado,
-  nada e enviado).
+  nada e enviado);
+- recusa rodar se o outbox tiver QUALQUER job pendente (o processador pega o
+  proximo da fila: so assim o job enviado e o deste smoke) e confere depois que o
+  job processado foi o dele. Pare o worker do compose antes de rodar.
 
 Saida: evento, status e numero SAP no terminal, e a resposta crua (status,
 header ``sap-messages``, corpo) em ``backend/.smoke/`` (fora do git) para virar
@@ -35,7 +38,7 @@ from pathlib import Path
 from typing import Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
 BACKEND = Path(__file__).resolve().parents[1]
@@ -49,7 +52,7 @@ from app.domain.contract import ESPECIFICACOES, Tipo  # noqa: E402
 from app.domain.enums import ActorKind  # noqa: E402
 from app.domain.states import Ator  # noqa: E402
 from app.entrypoints.worker import config_sap  # noqa: E402
-from app.infrastructure.db.modelos import contract_submissions  # noqa: E402
+from app.infrastructure.db.modelos import contract_submissions, outbox_jobs  # noqa: E402
 from app.infrastructure.db.uow import fabrica_de_uow  # noqa: E402
 from app.infrastructure.relogio import RelogioDoSistema  # noqa: E402
 from app.infrastructure.sap.client import ClienteSap  # noqa: E402
@@ -126,6 +129,10 @@ async def executar(settings: WorkerSettings, perguntar: Callable[[str], str]) ->
     engine = create_async_engine(settings.database_url.get_secret_value())
     nova_uow = fabrica_de_uow(engine, relogio)
     try:
+        pendentes = await jobs_pendentes(engine)
+        if pendentes:
+            print(f"Recusado: {pendentes} job(s) pendente(s) no outbox; nada foi gravado.")
+            return 3
         cid = uuid4()
         async with nova_uow() as uow:
             await uow.contratos.inserir(
@@ -139,7 +146,7 @@ async def executar(settings: WorkerSettings, perguntar: Callable[[str], str]) ->
                 )
             )
             await uow.commit()
-        await submeter_contrato(
+        submetido = await submeter_contrato(
             PedidoSubmissao(
                 contract_id=cid,
                 entrada=entrada,
@@ -165,6 +172,10 @@ async def executar(settings: WorkerSettings, perguntar: Callable[[str], str]) ->
                     to_payload(c, decimal_as_string=settings.sap_decimal_as_string)
                 ),
             ).processar_proximo()
+        if resultado is None or resultado.job.id != submetido.job_id:
+            print("ATENCAO: o job processado nao foi o deste smoke (worker do compose ligado?).")
+            print(f"contract_id do smoke: {cid} - confira o estado antes de qualquer reenvio.")
+            return 4
         async with nova_uow() as uow:
             registro = await uow.contratos.obter(cid)
         await _guardar_resposta(engine, cid, marca)
@@ -176,6 +187,16 @@ async def executar(settings: WorkerSettings, perguntar: Callable[[str], str]) ->
     print(f"status: {registro.status if registro else None}")
     print(f"numero SAP: {registro.sap_contract_number if registro else None}")
     return 0
+
+
+async def jobs_pendentes(engine: AsyncEngine) -> int:
+    async with engine.connect() as conn:
+        n = await conn.scalar(
+            select(func.count())
+            .select_from(outbox_jobs)
+            .where(outbox_jobs.c.concluido_em.is_(None))
+        )
+    return int(n or 0)
 
 
 async def _guardar_resposta(engine: AsyncEngine, cid: UUID, marca: str) -> None:

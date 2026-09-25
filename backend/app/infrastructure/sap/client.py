@@ -178,6 +178,17 @@ class ClienteSap:
     async def _post(
         self, corpo: bytes, token: str, *, correlation_id: str, contract_id: UUID
     ) -> httpx.Response:
+        try:
+            return await self._chamar_post(
+                corpo, token, correlation_id=correlation_id, contract_id=contract_id
+            )
+        except httpx.TransportError:
+            self._token = None  # SAP inalcancavel: a proxima tentativa busca token de novo
+            raise
+
+    async def _chamar_post(
+        self, corpo: bytes, token: str, *, correlation_id: str, contract_id: UUID
+    ) -> httpx.Response:
         return await self._chamar(
             "POST",
             self._url_post,

@@ -20,10 +20,10 @@ async def _preso_em_enviando(c: Cenario, *, com_marcador: bool) -> tuple[object,
     p = c.processador()
     pego = await p._pegar()  # commit 1: WORKER_PEGOU
     assert pego is not None
-    job, _, snapshot = pego
+    job, _, snapshot, _ = pego
     if com_marcador:
         assert snapshot is not None
-        assert await p._marcar(job, snapshot, b"{}") is not None  # commit 2
+        assert await p._marcar(job, snapshot, b"{}", token_novo=False) is not None  # commit 2
     return cid, r.job_id
 
 

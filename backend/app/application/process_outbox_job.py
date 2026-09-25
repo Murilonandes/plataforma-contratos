@@ -160,7 +160,7 @@ class ProcessadorOutbox:
         pego = await self._pegar()
         if pego is None:
             return None
-        job, registro, snapshot = pego
+        job, registro, snapshot, falha_snapshot = pego
         if registro is None:
             return Processado(job, None, None)
         log = _log.bind(
@@ -171,6 +171,8 @@ class ProcessadorOutbox:
         )
 
         try:
+            if falha_snapshot is not None:
+                raise falha_snapshot
             if snapshot is None:
                 raise SnapshotAusente
             conferencia = conferir(snapshot, self.algoritmo)
@@ -200,7 +202,7 @@ class ProcessadorOutbox:
         if csrf.evento is not None:
             return await self._finalizar_sem_envio(job, registro, csrf.evento, csrf.detalhe)
 
-        envio = await self._marcar(job, snapshot, corpo)
+        envio = await self._marcar(job, snapshot, corpo, token_novo=csrf.token_novo)
         if envio is None:
             log.warning("lock_perdido", fase="marcador")
             return Processado(job, None, None)
@@ -229,7 +231,7 @@ class ProcessadorOutbox:
 
     async def _pegar(
         self,
-    ) -> tuple[JobPego, ContratoRegistro | None, SnapshotContrato | None] | None:
+    ) -> tuple[JobPego, ContratoRegistro | None, SnapshotContrato | None, Exception | None] | None:
         async with self.nova_uow() as uow:
             agora = self.relogio.agora()
             job = await uow.outbox.pegar_proximo(
@@ -247,8 +249,15 @@ class ProcessadorOutbox:
                     contract_id=str(job.contract_id),
                     status=None if registro is None else registro.status.value,
                 )
-                return job, None, None
-            snapshot = await uow.snapshots.obter(job.snapshot_id)
+                return job, None, None, None
+            # Snapshot que nao reconstroi (regra de dominio mudou depois da submissao) NAO
+            # pode derrubar esta transacao: o job voltaria destravado e travaria a fila.
+            # A falha vai para o preparo (FALHA_NAO_CLASSIFICADA_ANTES_ENVIO, com alerta).
+            falha: Exception | None = None
+            try:
+                snapshot = await uow.snapshots.obter(job.snapshot_id)
+            except Exception as exc:
+                snapshot, falha = None, exc
             detalhe: dict[str, str | int] = {"tentativa": job.tentativa}
             versao = None if snapshot is None else snapshot.algoritmo_parcelas
             pulada = versao not in (None, self.algoritmo.versao)
@@ -267,12 +276,12 @@ class ProcessadorOutbox:
                 algoritmo_snapshot=versao,
                 algoritmo_atual=self.algoritmo.versao,
             )
-        return job, registro, snapshot
+        return job, registro, snapshot, falha
 
     # -- commit 2 ----------------------------------------------------------------------
 
     async def _marcar(
-        self, job: JobPego, snapshot: SnapshotContrato, corpo: bytes
+        self, job: JobPego, snapshot: SnapshotContrato, corpo: bytes, *, token_novo: bool
     ) -> EnvioRegistrado | None:
         async with self.nova_uow() as uow:
             agora = self.relogio.agora()
@@ -287,7 +296,8 @@ class ProcessadorOutbox:
                 request_body=corpo,
             )
             await uow.envios.registrar_envio(envio)
-            await uow.heartbeat.registrar_csrf_ok(agora=agora)
+            if token_novo:  # token do cache nao prova que o SAP responde agora
+                await uow.heartbeat.registrar_csrf_ok(agora=agora)
             await uow.commit()
         return envio
 
@@ -365,6 +375,8 @@ class ProcessadorOutbox:
                 _log.warning("lock_perdido", fase="resultado", job_id=str(job.id))
                 return Processado(job, None, None)
             await self.gancho(PontoCaos.ANTES_DE_GRAVAR_RESPOSTA)
+            if d.resposta is not None and d.resposta.status < 500:  # o SAP respondeu
+                await uow.heartbeat.registrar_csrf_ok(agora=self.relogio.agora())
             error_class = d.detalhe.get("error_class")
             await uow.envios.registrar_resposta(
                 envio.id,

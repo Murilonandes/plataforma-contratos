@@ -324,3 +324,17 @@ def test_loggers_do_httpx_e_httpcore_ficam_em_warning() -> None:
     ClienteSap(_config())
     assert logging.getLogger("httpx").level == logging.WARNING
     assert logging.getLogger("httpcore").level == logging.WARNING
+
+
+@pytest.mark.parametrize("erro", [httpx.ConnectError("x"), httpx.ReadTimeout("x")])
+@respx.mock
+async def test_erro_de_transporte_no_post_limpa_o_token(
+    cliente: ClienteSap, erro: Exception
+) -> None:
+    get = respx.get(BASE).mock(return_value=_token_ok())
+    respx.post(POST_URL).mock(side_effect=erro)
+    await _preparar(cliente)
+    with pytest.raises(type(erro)):
+        await cliente.post_criar_contrato(CORPO, correlation_id="c", contract_id=CID)
+    assert cliente.token_em_cache is None
+    assert get.call_count == 1

@@ -75,8 +75,8 @@ def test_implementa_a_porta_e_prazos_do_d4() -> None:
 @respx.mock
 async def test_preparar_ok_e_token_em_cache_nao_refaz_o_get(gw: GatewaySap) -> None:
     rota = respx.get(BASE).mock(return_value=_token_ok())
-    assert await _preparar(gw) == DesfechoCsrf.ok()
-    assert await _preparar(gw) == DesfechoCsrf.ok()
+    assert await _preparar(gw) == DesfechoCsrf.ok(token_novo=True)  # fetch real
+    assert await _preparar(gw) == DesfechoCsrf.ok()  # cache: sem GET
     assert rota.call_count == 1
 
 

@@ -521,3 +521,76 @@ def test_processado_valida_job_e_par_evento_para() -> None:
         with pytest.raises(ValueError) as v:  # noqa: PT011 — mensagem conferida abaixo
             Processado(job, evento, para)
         assert str(v.value) == "Processado: evento e para vem juntos"
+
+
+# ---- Revisao de fim de fase ----------------------------------------------------------------------
+
+
+async def test_snapshot_que_nao_reconstroi_nao_trava_a_fila(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from tests.unit.application import fakes
+
+    async def quebrado(*_: object, **__: object) -> None:
+        raise ValueError("regra nova recusa o snapshot")
+
+    monkeypatch.setattr(fakes._Snapshots, "obter", quebrado)
+    c = Cenario()
+    cid, job_id, _ = await _na_fila(c)
+    r = await c.processador().processar_proximo()
+    assert r is not None
+    assert (r.evento, r.para) == (E.FALHA_NAO_CLASSIFICADA_ANTES_ENVIO, S.ERRO_TECNICO)
+    assert _job(c, job_id).concluido  # nao volta para a fila
+    assert await c.processador().processar_proximo() is None
+    async with c.uow() as uow:
+        ultimo = (await uow.eventos.listar(cid))[-1].transicao
+    assert ultimo.detalhe == {"fase": "preparo", "error_class": "ValueError", "tentativa": 1}
+    assert c.gateway.preparos == 0
+    assert [n for n, _ in c.metricas.chamadas] == ["erro_tecnico"]
+
+
+async def test_token_do_cache_e_post_sem_resposta_nao_atualizam_o_heartbeat() -> None:
+    c = Cenario()
+    await _na_fila(c)
+    c.gateway.post = [desfecho(E.FALHA_ANTES_POST)]  # ConnectError: o SAP nao respondeu
+    await c.processador().processar_proximo()
+    assert c.banco.estado.heartbeat_csrf is None
+
+
+async def test_token_novo_atualiza_o_heartbeat_no_marcador() -> None:
+    c = Cenario()
+    await _na_fila(c)
+    c.gateway.csrf = [DesfechoCsrf.ok(token_novo=True)]
+    c.gateway.post = [desfecho(E.TIMEOUT_APOS_POST)]
+    await c.processador().processar_proximo()
+    assert c.banco.estado.heartbeat_csrf == T0
+
+
+@pytest.mark.parametrize(
+    ("status", "atualiza"), [(201, True), (400, True), (499, True), (500, False)]
+)
+async def test_resposta_http_do_sap_atualiza_o_heartbeat_menos_5xx(
+    status: int, *, atualiza: bool
+) -> None:
+    c = Cenario()
+    await _na_fila(c)
+    evento = {
+        201: E.SAP_201,
+        400: E.SAP_4XX_NEGOCIO,
+        499: E.SAP_4XX_TECNICO,
+        500: E.SAP_5XX_APOS_POST,
+    }
+    c.gateway.post = [
+        desfecho(evento[status], status=status, numero="1" if status == 201 else None)
+    ]
+    await c.processador().processar_proximo()
+    assert c.banco.estado.heartbeat_csrf == (T0 if atualiza else None)
+
+
+def test_desfecho_csrf_token_novo() -> None:
+    assert DesfechoCsrf.ok().token_novo is False
+    assert DesfechoCsrf(None).token_novo is False
+    assert DesfechoCsrf.ok(token_novo=True).token_novo is True
+    with pytest.raises(ValueError) as exc:  # noqa: PT011 — mensagem conferida abaixo
+        DesfechoCsrf(E.FALHA_ANTES_POST, token_novo=True)
+    assert str(exc.value) == "token_novo so com CSRF ok"
