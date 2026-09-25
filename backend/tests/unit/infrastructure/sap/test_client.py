@@ -25,7 +25,7 @@ POST_URL = BASE + "CriaContrato"
 CID = UUID("11111111-2222-3333-4444-555555555555")
 CORPO = b'{"SalesContractType":"ZCON","StatusBlock":"06"}'
 SENHA = "senha-tecnica-nao-vaza-7f3"
-TOKEN = "tok-csrf-abc123"
+TOKEN = "csrf-ficticio"  # valor de teste, nao e segredo
 
 
 def _config(*, decimal_as_string: bool = True) -> ConfigSap:
